@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mysuperlearner"
+version = "0.1.0"
+description = "A modern Python implementation of the Super Learner ensemble method."
+authors = [
+    { name="Your Name", email="your.email@example.com" }
+]
+readme = "README.md"
+requires-python = ">=3.8"
+license = {text = "MIT"}
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "numpy",
+    "scikit-learn",
+    "pandas",
+    "scipy",
+    "matplotlib",
+    "seaborn"
+]
+
+
+
+[project.urls]
+Homepage = "https://github.com/agartland/mysuperlearner"
+
+[tool.setuptools.packages.find]
+where = ["mysuperlearner"]

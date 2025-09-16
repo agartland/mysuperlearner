@@ -1,0 +1,16 @@
+---
+title: "R SuperLearner analysis"
+format: html
+---
+
+```{r}
+set.seed(123)
+library(SuperLearner)
+library(randomForest)
+X <- as.data.frame(matrix(rnorm(500*10), nrow=500))
+Y <- rbinom(500, 1, 0.5)
+SL.library <- c("SL.randomForest", "SL.glm")
+
+fit <- SuperLearner(Y=Y, X=X, SL.library=SL.library, method="method.NNloglik", cvControl = list(V = 5))
+print(fit)
+```
