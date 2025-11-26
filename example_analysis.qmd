@@ -1,0 +1,461 @@
+---
+title: "MySuperLearner: Comprehensive Example and Evaluation"
+author: "MySuperLearner Package"
+date: today
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    code-fold: false
+    theme: cosmo
+    fig-width: 10
+    fig-height: 6
+    self-contained: true
+    df-print: paged
+    grid:
+      sidebar-width: 0px
+      body-width: 2000px
+      margin-width: 0px
+      gutter-width: 1.5rem
+jupyter: python3
+---
+
+# Introduction
+
+This document demonstrates the **mysuperlearner** package, a comprehensive Python implementation of the SuperLearner ensemble method with R SuperLearner-like functionality. We'll walk through:
+
+1. Basic SuperLearner usage with different meta-learners
+2. External cross-validation for unbiased performance evaluation
+3. Detailed visualizations including forest plots and ROC curves
+4. Performance comparison across methods
+
+## Package Overview
+
+The SuperLearner algorithm is an ensemble method that optimally combines multiple machine learning algorithms using cross-validation. Key features of this implementation include:
+
+- **R SuperLearner compatibility**: Methods like `method.NNloglik` and `method.AUC`
+- **Robust error handling**: Comprehensive error tracking per learner
+- **External CV evaluation**: Similar to R's `CV.SuperLearner`
+- **Multiple meta-learners**: NNLogLik, AUC, NNLS, and Logistic Regression
+
+# Setup and Data Generation
+
+```{python}
+#| label: setup
+#| message: false
+#| warning: false
+
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+from sklearn.datasets import make_classification
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import roc_auc_score, accuracy_score, roc_curve, auc
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.linear_model import LogisticRegression
+from sklearn.svm import SVC
+
+from mysuperlearner import ExtendedSuperLearner, visualization
+from mysuperlearner.evaluation import evaluate_super_learner_cv
+
+# Set style
+sns.set_style("whitegrid")
+plt.rcParams['figure.figsize'] = (10, 6)
+
+print("=" * 70)
+print("MySuperLearner Comprehensive Analysis")
+print("=" * 70)
+```
+
+## Generate Synthetic Dataset
+
+We'll create a binary classification problem with 1000 samples and 20 features.
+
+```{python}
+#| label: data-generation
+
+# Generate synthetic data
+np.random.seed(42)
+X, y = make_classification(
+    n_samples=1000,
+    n_features=20,
+    n_informative=15,
+    n_redundant=5,
+    random_state=42
+)
+
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=42
+)
+
+print(f"\n{'Dataset Summary':^70}")
+print("=" * 70)
+print(f"Training set: {X_train.shape[0]} samples")
+print(f"Test set: {X_test.shape[0]} samples")
+print(f"Features: {X_train.shape[1]}")
+print(f"Classes: {np.unique(y)}")
+print(f"Class balance: {np.mean(y):.2%} positive")
+```
+
+## Define Base Learners
+
+We'll use three diverse base learners to create a heterogeneous ensemble:
+
+```{python}
+#| label: define-learners
+
+learners = [
+    ('RandomForest', RandomForestClassifier(n_estimators=100, random_state=42)),
+    ('LogisticRegression', LogisticRegression(max_iter=1000, random_state=42)),
+    ('SVM', SVC(probability=True, random_state=42))
+]
+
+print("\nBase Learners:")
+for name, _ in learners:
+    print(f"  - {name}")
+```
+
+# Example 1: Basic SuperLearner with NNLogLik
+
+The Non-Negative Log-Likelihood (NNLogLik) meta-learner is the recommended method for binary classification, equivalent to R's `method.NNloglik`.
+
+```{python}
+#| label: basic-superlearner
+
+print("\n" + "=" * 70)
+print("Training SuperLearner with NNLogLik Meta-Learner")
+print("=" * 70)
+
+sl = ExtendedSuperLearner(
+    method='nnloglik',
+    folds=5,
+    random_state=42,
+    verbose=False
+)
+
+sl.fit_explicit(X_train, y_train, learners)
+
+# Make predictions
+y_pred_proba = sl.predict_proba(X_test)[:, 1]
+y_pred = sl.predict(X_test)
+
+# Evaluate
+auc_score = roc_auc_score(y_test, y_pred_proba)
+acc_score = accuracy_score(y_test, y_pred)
+
+print(f"\nTest Set Performance:")
+print(f"  AUC: {auc_score:.4f}")
+print(f"  Accuracy: {acc_score:.4f}")
+
+# Get diagnostics
+diagnostics = sl.get_diagnostics()
+print(f"\nModel Diagnostics:")
+print(f"  Method: {diagnostics['method']}")
+print(f"  Inner CV folds: {diagnostics['n_folds']}")
+print(f"  Meta-learner type: {diagnostics['meta_learner_type']}")
+if 'cv_scores' in diagnostics and diagnostics['cv_scores']:
+    print("  CV AUC scores:")
+    for name, score in diagnostics['cv_scores'].items():
+        print(f"    {name}: {score:.4f}")
+```
+
+## Meta-Learner Weights
+
+The meta-learner assigns weights to each base learner, indicating their relative importance in the ensemble.
+
+```{python}
+#| label: meta-weights
+#| tbl-cap: "Meta-learner weights for base learners"
+
+if sl.meta_weights_ is not None:
+    weights_df = pd.DataFrame({
+        'Learner': [name for name, _ in learners],
+        'Weight': sl.meta_weights_
+    })
+    weights_df = weights_df.sort_values('Weight', ascending=False)
+    print("\nMeta-Learner Weights:")
+    print(weights_df.to_string(index=False))
+
+    # Visualize weights
+    fig, ax = plt.subplots(figsize=(8, 5))
+    bars = ax.barh(weights_df['Learner'], weights_df['Weight'], color='steelblue')
+    ax.set_xlabel('Weight', fontsize=12)
+    ax.set_ylabel('Base Learner', fontsize=12)
+    ax.set_title('Meta-Learner Weights (NNLogLik)', fontsize=14, fontweight='bold')
+
+    # Add value labels
+    for i, bar in enumerate(bars):
+        width = bar.get_width()
+        ax.text(width, bar.get_y() + bar.get_height()/2,
+                f'{width:.3f}', ha='left', va='center', fontsize=10,
+                bbox=dict(boxstyle='round,pad=0.3', facecolor='white', alpha=0.7))
+
+    plt.tight_layout()
+    plt.show()
+```
+
+# Example 2: Comparing Meta-Learning Methods
+
+Different meta-learning methods may perform differently depending on the dataset. Let's compare all available methods.
+
+```{python}
+#| label: compare-methods
+
+print("\n" + "=" * 70)
+print("Comparing Meta-Learning Methods")
+print("=" * 70)
+
+methods = ['nnloglik', 'auc', 'nnls', 'logistic']
+results = []
+
+for method in methods:
+    sl_method = ExtendedSuperLearner(
+        method=method,
+        folds=5,
+        random_state=42,
+        verbose=False
+    )
+    sl_method.fit_explicit(X_train, y_train, learners)
+
+    y_pred_proba = sl_method.predict_proba(X_test)[:, 1]
+    auc_score = roc_auc_score(y_test, y_pred_proba)
+    acc_score = accuracy_score(y_test, (y_pred_proba >= 0.5).astype(int))
+
+    results.append({
+        'Method': method,
+        'AUC': auc_score,
+        'Accuracy': acc_score
+    })
+
+    print(f"  {method:12s}: AUC = {auc_score:.4f}, Accuracy = {acc_score:.4f}")
+
+results_df = pd.DataFrame(results)
+```
+
+## Visualization: Method Comparison
+
+```{python}
+#| label: fig-method-comparison
+#| fig-cap: "Performance comparison across different meta-learning methods"
+
+fig, axes = plt.subplots(1, 2, figsize=(12, 5))
+
+# AUC comparison
+axes[0].barh(results_df['Method'], results_df['AUC'], color='coral')
+axes[0].set_xlabel('AUC', fontsize=12)
+axes[0].set_ylabel('Meta-Learning Method', fontsize=12)
+axes[0].set_title('AUC by Meta-Learning Method', fontsize=13, fontweight='bold')
+axes[0].set_xlim([results_df['AUC'].min() - 0.02, 1.0])
+
+# Add value labels
+for i, (method, auc_val) in enumerate(zip(results_df['Method'], results_df['AUC'])):
+    axes[0].text(auc_val, i, f'{auc_val:.4f}',
+                ha='left', va='center', fontsize=9,
+                bbox=dict(boxstyle='round,pad=0.3', facecolor='white', alpha=0.7))
+
+# Accuracy comparison
+axes[1].barh(results_df['Method'], results_df['Accuracy'], color='seagreen')
+axes[1].set_xlabel('Accuracy', fontsize=12)
+axes[1].set_ylabel('Meta-Learning Method', fontsize=12)
+axes[1].set_title('Accuracy by Meta-Learning Method', fontsize=13, fontweight='bold')
+axes[1].set_xlim([results_df['Accuracy'].min() - 0.02, 1.0])
+
+# Add value labels
+for i, (method, acc_val) in enumerate(zip(results_df['Method'], results_df['Accuracy'])):
+    axes[1].text(acc_val, i, f'{acc_val:.4f}',
+                ha='left', va='center', fontsize=9,
+                bbox=dict(boxstyle='round,pad=0.3', facecolor='white', alpha=0.7))
+
+plt.tight_layout()
+plt.show()
+```
+
+# Example 3: External Cross-Validation
+
+External cross-validation provides an unbiased estimate of the SuperLearner's performance, similar to R's `CV.SuperLearner` function.
+
+```{python}
+#| label: external-cv
+
+print("\n" + "=" * 70)
+print("External Cross-Validation (like R's CV.SuperLearner)")
+print("=" * 70)
+
+sl_cv = ExtendedSuperLearner(
+    method='nnloglik',
+    folds=5,
+    random_state=42,
+    verbose=False
+)
+
+# Use return_object=True and return_predictions=True for full functionality
+cv_results = evaluate_super_learner_cv(
+    X=X,
+    y=y,
+    base_learners=learners,
+    super_learner=sl_cv,
+    outer_folds=5,
+    random_state=42,
+    n_jobs=1,
+    return_predictions=True,
+    return_object=True
+)
+
+print(f"\nExternal CV completed: {cv_results}")
+print(f"  - {cv_results.metrics.shape[0]} total evaluations")
+print(f"  - Predictions stored: {cv_results.predictions is not None}")
+```
+
+## Summary Statistics
+
+```{python}
+#| label: tbl-cv-summary
+#| tbl-cap: "Cross-validation performance summary (mean ± std with 95% CI)"
+
+# Use the built-in summary method
+summary = cv_results.summary()
+print("\nCross-Validation Results:")
+print(summary.round(4))
+
+# Create a formatted display table for key metrics
+display_data = []
+learner_order = ['SuperLearner'] + [name for name, _ in learners]
+for learner in learner_order:
+    if learner in summary.index:
+        display_data.append({
+            'Learner': learner,
+            'Learner Type': 'Ensemble' if learner == 'SuperLearner' else 'Base',
+            'AUC (mean ± std)': f"{summary.loc[learner, ('auc', 'mean')]:.4f} ± {summary.loc[learner, ('auc', 'std')]:.4f}",
+            'AUC 95% CI': f"[{summary.loc[learner, ('auc', 'ci_lower')]:.4f}, {summary.loc[learner, ('auc', 'ci_upper')]:.4f}]",
+            'Accuracy': f"{summary.loc[learner, ('accuracy', 'mean')]:.4f} ± {summary.loc[learner, ('accuracy', 'std')]:.4f}"
+        })
+
+display_df = pd.DataFrame(display_data)
+print("\n" + display_df.to_string(index=False))
+```
+
+## Performance Comparison
+
+```{python}
+#| label: performance-comparison
+
+# Use the built-in comparison method
+comparison = cv_results.compare_to_best()
+print("\nSuperLearner vs. Best Base Learner:")
+print(comparison.round(4))
+```
+
+## Forest Plot: Cross-Validated AUC
+
+A forest plot shows the distribution of AUC scores across folds for each learner, with confidence intervals.
+
+```{python}
+#| label: fig-forest-plot
+#| fig-cap: "Forest plot showing cross-validated AUC scores with 95% confidence intervals"
+
+# Use the built-in plotting method (or standalone function)
+# Option 1: Using method
+fig, ax = cv_results.plot_forest(metric='auc')
+
+# Option 2: Using standalone function (commented out)
+# fig, ax = visualization.plot_cv_forest(cv_results.metrics, metric='auc')
+
+plt.show()
+```
+
+## Box Plot: AUC Distribution Across Folds
+
+```{python}
+#| label: fig-boxplot
+#| fig-cap: "Distribution of AUC scores across cross-validation folds"
+
+# Use the built-in plotting method
+fig, ax = cv_results.plot_boxplot(metric='auc')
+plt.show()
+```
+
+# ROC Curve Analysis
+
+With fold-level predictions stored, we can now generate cross-validated ROC curves that provide a more robust assessment of model performance.
+
+## Cross-Validated ROC Curves
+
+```{python}
+#| label: fig-cv-roc-curves
+#| fig-cap: "Cross-validated ROC curves for SuperLearner and individual base learners"
+
+# Use the built-in plotting method with CV predictions
+fig, ax = cv_results.plot_roc_curves()
+plt.show()
+```
+
+## Calibration Curves
+
+Calibration curves show how well the predicted probabilities match the actual frequencies of positive outcomes.
+
+```{python}
+#| label: fig-calibration
+#| fig-cap: "Calibration curves showing predicted vs. observed probabilities"
+
+# Use the built-in plotting method
+fig, ax = cv_results.plot_calibration(n_bins=10)
+plt.show()
+```
+
+# Summary and Conclusions
+
+## Key Findings
+
+```{python}
+#| label: summary-table
+
+# Use the summary method from the result object
+summary = cv_results.summary(metrics=['auc', 'accuracy'])
+
+# Create a simplified summary table
+summary_stats = {
+    'Metric': ['Mean AUC', 'Std AUC', 'Mean Accuracy', 'Std Accuracy']
+}
+
+for learner in ['SuperLearner'] + [name for name, _ in learners]:
+    if learner in summary.index:
+        summary_stats[learner] = [
+            summary.loc[learner, ('auc', 'mean')],
+            summary.loc[learner, ('auc', 'std')],
+            summary.loc[learner, ('accuracy', 'mean')],
+            summary.loc[learner, ('accuracy', 'std')]
+        ]
+
+summary_table = pd.DataFrame(summary_stats)
+print("\nFinal Summary:")
+print(summary_table.to_string(index=False))
+```
+
+## Conclusions
+
+1. **SuperLearner Performance**: The SuperLearner ensemble successfully combines base learners to achieve competitive or superior performance compared to individual models.
+
+2. **Meta-Learner Selection**: Different meta-learning methods show varying performance, with `nnloglik` being a robust choice for binary classification.
+
+3. **Cross-Validation**: External cross-validation provides unbiased performance estimates and demonstrates the stability of the SuperLearner approach across different data splits.
+
+4. **Base Learner Diversity**: Using diverse base learners (tree-based, linear, and kernel methods) allows the SuperLearner to leverage different modeling approaches.
+
+---
+
+## Session Information
+
+```{python}
+#| label: session-info
+
+import sys
+import sklearn
+
+print(f"Python version: {sys.version}")
+print(f"NumPy version: {np.__version__}")
+print(f"Pandas version: {pd.__version__}")
+print(f"Scikit-learn version: {sklearn.__version__}")
+print(f"Matplotlib version: {plt.matplotlib.__version__}")
+print(f"Seaborn version: {sns.__version__}")
+```

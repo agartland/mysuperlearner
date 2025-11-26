@@ -1,13 +1,13 @@
-# Extended SuperLearner
+# mysuperlearner
 
-A comprehensive Python implementation of the SuperLearner workflow with R SuperLearner-like functionality, featuring custom meta-learners, robust error handling, and external cross-validation.
+A comprehensive Python implementation of the SuperLearner ensemble method with R SuperLearner-like functionality, featuring custom meta-learners, robust error handling, and external cross-validation.
 
 ## 🌟 Key Features
 
 ### 🎯 R SuperLearner Compatibility
 - **method.NNloglik**: Non-negative log-likelihood optimization for binary classification
-- **method.AUC**: AUC-maximizing meta-learner using Nelder-Mead optimization  
-- **CV.SuperLearner equivalent**: External cross-validation for unbiased performance evaluation
+- **method.AUC**: AUC-maximizing meta-learner using Nelder-Mead optimization
+- **External CV evaluation**: External cross-validation for unbiased performance evaluation (similar to CV.SuperLearner)
 - **SL.mean equivalent**: Simple mean predictor baseline
 
 ### 🛡️ Robust Error Handling
@@ -20,17 +20,38 @@ A comprehensive Python implementation of the SuperLearner workflow with R SuperL
 - External cross-validation with individual learner comparison
 - Performance benchmarking and timing analysis
 - Detailed diagnostic summaries and visualizations
-    - Integration with a built-in evaluation framework (mlens not required)
+- Built-in evaluation framework (mlens not required)
 
 ## 🚀 Quick Start
+
+### Installation
+
+```bash
+pip install .
+```
+
+### Requirements
+- Python ≥ 3.8
+- scikit-learn
+- numpy
+- pandas
+- scipy
+- matplotlib (optional, for plotting)
+- seaborn (optional, for plotting)
 
 ### Basic Usage
 
 ```python
-from extended_superlearner import create_superlearner
+from mysuperlearner import ExtendedSuperLearner
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.svm import SVC
+from sklearn.datasets import make_classification
+from sklearn.model_selection import train_test_split
+
+# Generate data
+X, y = make_classification(n_samples=1000, n_features=20, random_state=42)
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
 # Define base learners
 learners = [
@@ -40,50 +61,19 @@ learners = [
 ]
 
 # Create SuperLearner with NNLogLik meta-learner (like R's method.NNloglik)
-sl = create_superlearner(
-    learners=learners,
-    method='nnloglik',  # or 'auc', 'nnls', 'logistic'
-    # mysuperlearner
+sl = ExtendedSuperLearner(method='nnloglik', folds=5, random_state=42, verbose=True)
 
-    A modern Python implementation of the Super Learner ensemble method.
+# Fit using explicit builder
+sl.fit_explicit(X_train, y_train, learners)
 
-    ## Installation
+# Make predictions
+y_pred_proba = sl.predict_proba(X_test)
+y_pred = sl.predict(X_test)
 
-    ```bash
-    pip install .
-    ```
-
-    ## Usage
-
-    See `mysuperlearner/example_usage.py` for a usage example.
-
-    ## Project Structure
-
-    - `mysuperlearner/` - Main package code
-    - `mysuperlearner/example_usage.py` - Example usage script
-    - `README.md` - This file
-    - `pyproject.toml` - Build configuration
-
-    ## License
-
-    MIT
-- Python ≥ 3.7
-- (no external mlens requirement)
-- scikit-learn ≥ 0.24.0
-- numpy ≥ 1.19.0
-- pandas ≥ 1.1.0
-- scipy ≥ 1.5.0
-
-### Optional Dependencies
-```bash
-# For plotting
-pip install matplotlib seaborn
-
-# For development
-pip install pytest pytest-cov black
-
-# For documentation
-pip install sphinx sphinx-rtd-theme
+# Evaluate
+from sklearn.metrics import roc_auc_score, accuracy_score
+print(f"AUC: {roc_auc_score(y_test, y_pred_proba[:, 1]):.4f}")
+print(f"Accuracy: {accuracy_score(y_test, y_pred):.4f}")
 ```
 
 ## 🎯 Meta-Learning Methods
@@ -115,109 +105,92 @@ pip install sphinx sphinx-rtd-theme
 
 ```python
 import numpy as np
+from mysuperlearner import ExtendedSuperLearner
 from sklearn.datasets import make_classification
 from sklearn.model_selection import train_test_split
+from sklearn.metrics import roc_auc_score
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.linear_model import LogisticRegression
+from sklearn.svm import SVC
 
 # Generate dataset
 X, y = make_classification(n_samples=1000, n_features=20, random_state=42)
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)
+
+# Define base learners
+learners = [
+    ('RandomForest', RandomForestClassifier(n_estimators=100, random_state=42)),
+    ('LogisticRegression', LogisticRegression(random_state=42)),
+    ('SVM', SVC(probability=True, random_state=42))
+]
 
 # Test different meta-learning methods
 methods = ['nnloglik', 'auc', 'nnls', 'logistic']
 results = {}
 
 for method in methods:
-    sl = create_superlearner(learners, method=method, random_state=42)
-    sl.fit(X_train, y_train)
-    
+    sl = ExtendedSuperLearner(method=method, folds=5, random_state=42)
+    sl.fit_explicit(X_train, y_train, learners)
+
     y_pred_proba = sl.predict_proba(X_test)[:, 1]
     auc_score = roc_auc_score(y_test, y_pred_proba)
-    
+
     results[method] = auc_score
     print(f"{method}: AUC = {auc_score:.4f}")
 ```
 
-### Example 2: Comprehensive Error Analysis
+### Example 2: External Cross-Validation Study
 
 ```python
-# Create problematic dataset
-X_prob = np.random.randn(500, 15)
-X_prob[:, 0] = 1  # Constant feature
-X_prob[0:50, 1] = np.inf  # Some infinite values
-y_prob = np.random.binomial(1, 0.3, 500)
-
-# SuperLearner with error tracking
-sl = ExtendedSuperLearner(method='nnloglik', track_errors=True, verbose=True)
-sl.add_learners(learners)
-
-try:
-    sl.fit(X_prob, y_prob)
-    print("Training completed despite data issues!")
-except Exception as e:
-    print(f"Training failed: {e}")
-
-# Analyze errors
-error_df = sl.get_error_summary()
-print("\nError Summary:")
-print(error_df)
-```
-
-### Example 3: External Cross-Validation Study
-
-```python
+from mysuperlearner import ExtendedSuperLearner
+from mysuperlearner.evaluation import evaluate_super_learner_cv
 from sklearn.datasets import load_breast_cancer
 
 # Load real dataset
 data = load_breast_cancer()
 X, y = data.data, data.target
 
-# Comprehensive evaluation
-sl_cv = evaluate_superlearner(
-    X=X, y=y,
-    learners=learners,
-    method='nnloglik',
-    inner_cv=5,
-    outer_cv=10,
-    scoring='auc',
+# Define base learners
+learners = [
+    ('RandomForest', RandomForestClassifier(n_estimators=100, random_state=42)),
+    ('LogisticRegression', LogisticRegression(random_state=42)),
+    ('SVM', SVC(probability=True, random_state=42))
+]
+
+# Create SuperLearner configuration
+sl = ExtendedSuperLearner(method='nnloglik', folds=5, random_state=42)
+
+# Run external cross-validation
+cv_results = evaluate_super_learner_cv(
+    X=X,
+    y=y,
+    base_learners=learners,
+    super_learner=sl,
+    outer_folds=10,
     random_state=42,
-    include_individual=True
+    n_jobs=1
 )
 
-# Results analysis
-cv_summary = sl_cv.get_cv_summary()
-print("Cross-Validation Results:")
-print(cv_summary)
+# Analyze results
+print("\nCross-Validation Results:")
+print(cv_results.groupby('learner')[['auc', 'accuracy']].agg(['mean', 'std']))
 
-# Statistical significance testing
-from scipy import stats
-sl_scores = sl_cv.cv_results_[sl_cv.cv_results_['estimator'] == 'SuperLearner']['test_score']
-best_individual = sl_cv.cv_results_.groupby('estimator')['test_score'].mean().drop('SuperLearner').max()
-
-print(f"\nSuperLearner mean: {sl_scores.mean():.4f} ± {sl_scores.std():.4f}")
-print(f"Best individual: {best_individual:.4f}")
+# Compare SuperLearner to best individual
+sl_auc = cv_results[cv_results['learner'] == 'SuperLearner']['auc'].mean()
+best_individual = cv_results[cv_results['learner_type'] == 'base'].groupby('learner')['auc'].mean().max()
+print(f"\nSuperLearner mean AUC: {sl_auc:.4f}")
+print(f"Best individual learner AUC: {best_individual:.4f}")
 ```
 
 ## 🧪 Testing and Development
 
 ### Running Tests
 ```bash
-# Install development dependencies
-pip install -e .[dev]
+# Install in development mode
+pip install -e .
 
 # Run tests
 pytest tests/ -v
-
-# Run tests with coverage
-pytest tests/ --cov=extended_superlearner --cov-report=html
-```
-
-### Code Formatting
-```bash
-# Format code
-black extended_superlearner/
-
-# Check formatting
-black --check extended_superlearner/
 ```
 
 ## 📚 API Reference
@@ -229,34 +202,41 @@ Extended SuperLearner with R-like functionality and error handling.
 
 **Parameters:**
 - `method` (str): Meta-learning method ('nnloglik', 'auc', 'nnls', 'logistic')
-- `folds` (int): Number of CV folds for internal cross-validation
+- `folds` (int): Number of CV folds for internal cross-validation (default: 5)
 - `random_state` (int): Random seed for reproducibility
-- `verbose` (bool): Enable detailed output
-- `track_errors` (bool): Enable error tracking
+- `verbose` (bool): Enable detailed output (default: False)
+- `track_errors` (bool): Enable error tracking (default: True)
 
 **Key Methods:**
-- `add_learners(learners)`: Add base learners
-- `fit(X, y)`: Fit the SuperLearner
-- `predict(X)`: Make predictions
-- `predict_proba(X)`: Get prediction probabilities
-- `print_summary()`: Print comprehensive summary
-- `get_error_summary()`: Get error tracking DataFrame
+- `fit_explicit(X, y, base_learners, sample_weight=None)`: Fit the SuperLearner with explicit base learners
+  - `base_learners`: List of (name, estimator) tuples
+- `predict(X)`: Make binary predictions (0 or 1)
+- `predict_proba(X)`: Get prediction probabilities (returns array of shape (n_samples, 2))
 
-#### `SuperLearnerCV`
-External cross-validation for SuperLearner (CV.SuperLearner equivalent).
+**Attributes:**
+- `meta_weights_`: Learned meta-learner weights (if applicable)
+- `base_learners_full_`: List of (name, fitted_model) tuples trained on full data
+- `Z_`: Level-1 cross-validated predictions matrix
+- `cv_predictions_`: List of CV predictions per learner
+
+#### External Cross-Validation
+
+Use `evaluate_super_learner_cv()` function for external cross-validation (similar to R's CV.SuperLearner).
+
+**Function:** `mysuperlearner.evaluation.evaluate_super_learner_cv()`
 
 **Parameters:**
-- `method` (str): Meta-learning method
-- `inner_cv` (int): CV folds for SuperLearner construction
-- `outer_cv` (int): CV folds for performance evaluation
+- `X`: Feature matrix
+- `y`: Target vector
+- `base_learners`: List of (name, estimator) tuples
+- `super_learner`: ExtendedSuperLearner instance
+- `outer_folds` (int): Number of outer CV folds (default: 5)
 - `random_state` (int): Random seed
-- `verbose` (bool): Enable detailed output
-- `n_jobs` (int): Number of parallel jobs
+- `sample_weight`: Optional sample weights
+- `metrics` (dict): Custom metrics (default: AUC, log loss, accuracy)
+- `n_jobs` (int): Number of parallel jobs (default: 1)
 
-**Key Methods:**
-- `fit(X, y, learners, scoring)`: Run external cross-validation
-- `get_cv_summary()`: Get CV results summary
-- `plot_cv_results()`: Plot performance comparison
+**Returns:** pandas DataFrame with per-fold metrics for SuperLearner and individual base learners
 
 ### Custom Meta-Learners
 
@@ -271,71 +251,34 @@ Simple mean predictor (SL.mean equivalent).
 
 ### Error Handling
 
-#### `ErrorTracker`
-Comprehensive error tracking system.
+The package includes comprehensive error tracking via the `ErrorTracker` class:
 
 **Key Methods:**
-- `add_error(learner_name, error_type, message)`: Record error
-- `check_predictions(predictions, learner_name)`: Validate predictions
-- `get_error_summary()`: Get summary DataFrame
-- `print_summary()`: Print formatted error report
+- `add_error(learner_name, error_type, message, fold=None, phase='unknown', severity='error')`: Record error
+- Error types: CONVERGENCE, NAN_INF, PREDICTION, FITTING, OPTIMIZATION, DATA, OTHER
 
-### Convenience Functions
-
-#### `create_superlearner(learners, method='nnloglik', **kwargs)`
-Create configured SuperLearner instance.
-
-#### `evaluate_superlearner(X, y, learners, **kwargs)`
-Run external cross-validation evaluation.
+**Usage:**
+Error tracking is enabled by default when creating an `ExtendedSuperLearner` with `track_errors=True`. Errors are stored in `sl.error_tracker.error_records`.
 
 ## 🤝 Contributing
 
-We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details.
-
-### Development Setup
-```bash
-# Clone repository
-git clone https://github.com/your-username/extended-superlearner
-cd extended-superlearner
-
-# Create virtual environment
-python -m venv venv
-source venv/bin/activate  # or `venv\Scripts\activate` on Windows
-
-# Install in development mode
-pip install -e .[dev]
-
-# Run tests
-pytest tests/
-```
-
-### Contribution Areas
+Contributions are welcome! Areas for contribution include:
 - Additional meta-learning methods
-- More screening algorithms
 - Performance optimizations
 - Documentation improvements
 - Bug fixes and testing
 
 ## 📄 License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License.
 
 ## 🙏 Acknowledgments
 
 - **R SuperLearner Team**: Original SuperLearner algorithm and implementation
-- **mlens** (optional): Excellent ensemble learning framework for Python
 - **scikit-learn**: Foundation for machine learning in Python
-
-## 📞 Support
-
-- **Documentation**: [Read the Docs](https://extended-superlearner.readthedocs.io)
-- **Issues**: [GitHub Issues](https://github.com/your-username/extended-superlearner/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/your-username/extended-superlearner/discussions)
 
 ## 🔗 Related Projects
 
 - [R SuperLearner](https://github.com/ecpolley/SuperLearner): Original R implementation
-- [mlens](https://github.com/flennerhag/mlens): High-performance ensemble learning (optional)
 - [scikit-learn](https://github.com/scikit-learn/scikit-learn): Machine learning library
-- [Targeted Learning](https://tlverse.org/): Causal inference with SuperLearner
 

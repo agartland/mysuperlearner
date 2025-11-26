@@ -145,6 +145,7 @@ class ExtendedSuperLearner(BaseEstimator, ClassifierMixin):
         """
         # Validate inputs
         X_arr, y_arr = check_X_y(X, y)
+        self.y_ = y_arr  # Store for diagnostics
 
         # Build level-1 matrix
         Z, cv_preds, fold_indices = self._build_level1(X_arr, y_arr, base_learners,
@@ -252,3 +253,65 @@ class ExtendedSuperLearner(BaseEstimator, ClassifierMixin):
     def predict(self, X):
         p = self.predict_proba(X)[:, 1]
         return (p >= 0.5).astype(int)
+
+    def get_diagnostics(self):
+        """
+        Get diagnostic information about the fitted SuperLearner.
+
+        Returns
+        -------
+        diagnostics : dict
+            Dictionary containing:
+            - 'method': Meta-learning method used
+            - 'n_folds': Number of CV folds
+            - 'base_learner_names': Names of base learners
+            - 'meta_weights': Array of meta-learner weights (if available)
+            - 'cv_scores': Dict of per-learner CV AUC scores (if available)
+            - 'errors': Error tracker records (if tracking enabled)
+            - 'cv_predictions_shape': Shape of cross-validated predictions matrix
+
+        Examples
+        --------
+        >>> sl = ExtendedSuperLearner(method='nnloglik', folds=5)
+        >>> sl.fit_explicit(X_train, y_train, learners)
+        >>> diagnostics = sl.get_diagnostics()
+        >>> print(f"Meta weights: {diagnostics['meta_weights']}")
+        """
+        diagnostics = {
+            'method': self.method,
+            'n_folds': self.folds,
+            'base_learner_names': getattr(self, 'base_learner_names_', []),
+            'meta_weights': getattr(self, 'meta_weights_', None),
+        }
+
+        # Add CV predictions shape if available
+        if hasattr(self, 'Z_'):
+            diagnostics['cv_predictions_shape'] = self.Z_.shape
+
+        # Add CV scores if available
+        if hasattr(self, 'cv_predictions_') and hasattr(self, 'Z_'):
+            cv_scores = {}
+            # Check if we have stored y_ (would need to be added in fit_explicit)
+            if hasattr(self, 'y_'):
+                for i, name in enumerate(self.base_learner_names_):
+                    try:
+                        cv_scores[name] = roc_auc_score(self.y_, self.Z_[:, i])
+                    except Exception:
+                        cv_scores[name] = np.nan
+                diagnostics['cv_scores'] = cv_scores
+
+        # Add error information
+        if self.error_tracker is not None:
+            diagnostics['errors'] = self.error_tracker.error_records
+            diagnostics['n_errors'] = len(self.error_tracker.error_records)
+        else:
+            diagnostics['errors'] = None
+            diagnostics['n_errors'] = 0
+
+        # Add meta-learner info
+        if hasattr(self, 'meta_learner_') and self.meta_learner_ is not None:
+            diagnostics['meta_learner_type'] = type(self.meta_learner_).__name__
+        else:
+            diagnostics['meta_learner_type'] = 'WeightedCombination'
+
+        return diagnostics
