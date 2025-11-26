@@ -95,7 +95,8 @@ print(f"Accuracy: {accuracy_score(y_test, y_pred):.4f}")
 | **method.AUC** | ✅ | ✅ | Nelder-Mead optimization |
 | **CV.SuperLearner** | ✅ | ✅ | SuperLearnerCV class |
 | **Error Handling** | ✅ | ✅ | Enhanced with detailed tracking |
-| **SL.mean** | ✅ | ✅ | MeanEstimator class |
+| **SL.mean** (base) | ✅ | ✅ | InterceptOnlyEstimator class |
+| **SL.mean** (meta) | ✅ | ✅ | MeanEstimator class |
 | **Screening** | ✅ | ✅ | Via built-in or user-provided preprocessing |
 | **Parallel Processing** | ✅ | ✅ | Via joblib / sklearn backends or user configuration |
 
@@ -238,16 +239,34 @@ Use `evaluate_super_learner_cv()` function for external cross-validation (simila
 
 **Returns:** pandas DataFrame with per-fold metrics for SuperLearner and individual base learners
 
+### Base Learners
+
+#### `InterceptOnlyEstimator`
+Intercept-only baseline predictor (equivalent to R's `SL.mean` base learner).
+
+Predicts the empirical mean of the training data for all samples, completely ignoring input features. This serves as a performance baseline - if more complex learners can't beat this simple predictor, they're not adding value.
+
+**Example:**
+```python
+from mysuperlearner import InterceptOnlyEstimator
+
+learners = [
+    ('Baseline', InterceptOnlyEstimator()),
+    ('RF', RandomForestClassifier()),
+    # ... other learners
+]
+```
+
 ### Custom Meta-Learners
 
 #### `NNLogLikEstimator`
 Non-negative log-likelihood meta-learner (method.NNloglik equivalent).
 
-#### `AUCEstimator` 
+#### `AUCEstimator`
 AUC-maximizing meta-learner (method.AUC equivalent).
 
 #### `MeanEstimator`
-Simple mean predictor (SL.mean equivalent).
+Simple mean predictor meta-learner - averages predictions from base learners.
 
 ### Error Handling
 

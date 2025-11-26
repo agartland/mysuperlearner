@@ -125,3 +125,39 @@ class MeanEstimator(BaseEstimator, ClassifierMixin):
         X = np.asarray(X)
         p = X.mean(axis=1)
         return np.vstack([1 - p, p]).T
+
+
+class InterceptOnlyEstimator(BaseEstimator, ClassifierMixin):
+    """
+    Intercept-only baseline predictor (equivalent to R's SL.mean base learner).
+
+    Predicts the empirical mean of the training data for all samples.
+    This serves as a simple baseline that ignores all features.
+    Useful for establishing a performance floor.
+    """
+    def __init__(self):
+        self.mean_ = None
+
+    def fit(self, X, y, sample_weight=None):
+        """Fit by computing mean of training labels."""
+        y = np.asarray(y)
+        if sample_weight is not None:
+            sample_weight = np.asarray(sample_weight)
+            self.mean_ = np.average(y, weights=sample_weight)
+        else:
+            self.mean_ = np.mean(y)
+        return self
+
+    def predict(self, X):
+        """Predict class based on threshold at 0.5."""
+        if self.mean_ is None:
+            raise ValueError('Estimator not fitted yet')
+        return (self.mean_ >= 0.5).astype(int) * np.ones(len(X), dtype=int)
+
+    def predict_proba(self, X):
+        """Return constant probability for all samples."""
+        if self.mean_ is None:
+            raise ValueError('Estimator not fitted yet')
+        n = len(X)
+        p = self.mean_
+        return np.vstack([np.full(n, 1 - p), np.full(n, p)]).T

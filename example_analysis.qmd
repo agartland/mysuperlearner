@@ -70,18 +70,22 @@ print("=" * 70)
 
 ## Generate Synthetic Dataset
 
-We'll create a binary classification problem with 1000 samples and 20 features.
+We'll create a **challenging** binary classification problem with limited signal: only 3 out of 20 features are informative, with 10% label noise added to make prediction difficult.
 
 ```{python}
 #| label: data-generation
 
-# Generate synthetic data
+# Generate challenging synthetic data
 np.random.seed(42)
 X, y = make_classification(
     n_samples=1000,
     n_features=20,
-    n_informative=15,
-    n_redundant=5,
+    n_informative=3,      # Only 3 informative features (challenging!)
+    n_redundant=2,        # 2 redundant features
+    n_repeated=0,
+    n_clusters_per_class=2,
+    flip_y=0.1,          # Add 10% label noise
+    class_sep=0.5,       # Reduce class separation
     random_state=42
 )
 
@@ -94,26 +98,33 @@ print("=" * 70)
 print(f"Training set: {X_train.shape[0]} samples")
 print(f"Test set: {X_test.shape[0]} samples")
 print(f"Features: {X_train.shape[1]}")
+print(f"Informative features: 3 (15% of total)")
+print(f"Label noise: 10%")
 print(f"Classes: {np.unique(y)}")
 print(f"Class balance: {np.mean(y):.2%} positive")
 ```
 
 ## Define Base Learners
 
-We'll use three diverse base learners to create a heterogeneous ensemble:
+We'll use diverse base learners including a simple intercept-only baseline (equivalent to R's `SL.mean`):
 
 ```{python}
 #| label: define-learners
 
+from mysuperlearner import InterceptOnlyEstimator
+
 learners = [
+    ('Intercept', InterceptOnlyEstimator()),  # Simple baseline (R's SL.mean)
     ('RandomForest', RandomForestClassifier(n_estimators=100, random_state=42)),
     ('LogisticRegression', LogisticRegression(max_iter=1000, random_state=42)),
     ('SVM', SVC(probability=True, random_state=42))
 ]
 
 print("\nBase Learners:")
-for name, _ in learners:
-    print(f"  - {name}")
+print("  - Intercept: Predicts training set mean (baseline)")
+print("  - RandomForest: Ensemble of decision trees")
+print("  - LogisticRegression: Linear classifier")
+print("  - SVM: Support vector machine with RBF kernel")
 ```
 
 # Example 1: Basic SuperLearner with NNLogLik
