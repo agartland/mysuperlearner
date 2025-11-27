@@ -48,6 +48,15 @@ class ExtendedSuperLearner(BaseEstimator, ClassifierMixin):
         track_errors : bool, default=True
             Whether to track errors and warnings
         **kwargs : additional arguments passed to SuperLearner
+            trim : float, default=0.025
+                Probability trimming bounds to avoid numerical issues
+            normalize_weights : bool, default=True
+                Whether to normalize meta-learner weights to sum to 1
+            n_jobs : int, default=1
+                Number of parallel jobs (not yet fully implemented)
+            min_viable_learners : int, default=1
+                Minimum number of learners that must succeed in final refit.
+                If fewer learners succeed, an exception is raised.
         """
         self.method = method
         self.folds = folds
@@ -76,6 +85,7 @@ class ExtendedSuperLearner(BaseEstimator, ClassifierMixin):
         self.trim = self.kwargs.pop('trim', 0.025)
         self.normalize_weights = self.kwargs.pop('normalize_weights', True)
         self.n_jobs = self.kwargs.pop('n_jobs', 1)
+        self.min_viable_learners = self.kwargs.pop('min_viable_learners', 1)
 
     # ... (rest of the ExtendedSuperLearner class)
 
@@ -201,18 +211,72 @@ class ExtendedSuperLearner(BaseEstimator, ClassifierMixin):
             self.meta_weights_ = w
             self.meta_learner_ = meta
 
-        # Refit base learners on full data
+        # Refit base learners on full data with comprehensive error handling
         self.base_learners_full_ = []
+        self.failed_learners_ = set()
+
         for name, estimator in base_learners:
             mdl = clone(estimator)
             try:
+                # Try to fit with sample_weight
                 if sample_weight is not None:
-                    mdl.fit(X_arr, y_arr, sample_weight=sample_weight)
+                    try:
+                        mdl.fit(X_arr, y_arr, sample_weight=sample_weight)
+                    except TypeError:
+                        # Estimator doesn't support sample_weight
+                        mdl.fit(X_arr, y_arr)
                 else:
                     mdl.fit(X_arr, y_arr)
-            except TypeError:
-                mdl.fit(X_arr, y_arr)
-            self.base_learners_full_.append((name, mdl))
+                self.base_learners_full_.append((name, mdl))
+
+            except Exception as e:
+                # Track error during final refit
+                if self.error_tracker is not None:
+                    import traceback
+                    self.error_tracker.add_error(
+                        learner_name=name,
+                        error_type=ErrorType.FITTING,
+                        message=f"Final refit failed: {str(e)}",
+                        fold=None,
+                        phase='final_refit',
+                        severity='error',
+                        traceback=traceback.format_exc() if self.verbose else None
+                    )
+                self.failed_learners_.add(name)
+
+                # Add dummy learner that returns neutral predictions
+                from sklearn.base import ClassifierMixin
+                class _DummyFailedLearner(BaseEstimator, ClassifierMixin):
+                    def __init__(self, name):
+                        self.name = name
+                    def fit(self, X, y, sample_weight=None):
+                        return self
+                    def predict_proba(self, X):
+                        n = X.shape[0] if hasattr(X, 'shape') else len(X)
+                        return np.column_stack([np.full(n, 0.5), np.full(n, 0.5)])
+                    def predict(self, X):
+                        n = X.shape[0] if hasattr(X, 'shape') else len(X)
+                        return np.zeros(n, dtype=int)
+
+                dummy = _DummyFailedLearner(name=name)
+                self.base_learners_full_.append((name, dummy))
+
+        # Check if we have enough working learners
+        working_learners = len(self.base_learners_full_) - len(self.failed_learners_)
+        min_viable = getattr(self, 'min_viable_learners', 1)
+
+        if working_learners < min_viable:
+            raise RuntimeError(
+                f"Only {working_learners}/{len(base_learners)} learners succeeded in final refit. "
+                f"Minimum required: {min_viable}. "
+                f"Failed learners: {self.failed_learners_}"
+            )
+        elif len(self.failed_learners_) > 0:
+            warnings.warn(
+                f"Warning: {len(self.failed_learners_)} learner(s) failed in final refit: "
+                f"{self.failed_learners_}. Ensemble will use {working_learners} learners.",
+                category=UserWarning
+            )
 
         return self
 
@@ -225,11 +289,33 @@ class ExtendedSuperLearner(BaseEstimator, ClassifierMixin):
         # build matrix of base predictions on X
         K = len(self.base_learners_full_)
         Z_new = np.zeros((X_arr.shape[0], K), dtype=float)
+        prediction_failures = []
+
         for j, (name, mdl) in enumerate(self.base_learners_full_):
             try:
                 Z_new[:, j] = self._get_proba(mdl, X_arr)
-            except Exception:
-                Z_new[:, j] = 0.0
+            except Exception as e:
+                # Track prediction error
+                if self.error_tracker is not None:
+                    self.error_tracker.add_error(
+                        learner_name=name,
+                        error_type=ErrorType.PREDICTION,
+                        message=f"Prediction failed: {str(e)}",
+                        fold=None,
+                        phase='prediction',
+                        severity='warning'
+                    )
+                prediction_failures.append(name)
+                # Use neutral probability (0.5) instead of 0.0 for failed predictions
+                Z_new[:, j] = 0.5
+
+        # Warn about prediction failures if verbose
+        if len(prediction_failures) > 0 and self.verbose:
+            warnings.warn(
+                f"Prediction failed for {len(prediction_failures)} learner(s): "
+                f"{prediction_failures}. Using neutral probability (0.5).",
+                category=UserWarning
+            )
 
         Z_new = np.clip(Z_new, self.trim, 1.0 - self.trim)
 
