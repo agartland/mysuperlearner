@@ -452,3 +452,265 @@ def plot_cv_boxplot(
         plt.setp(ax.xaxis.get_majorticklabels(), rotation=45, ha='right')
 
     return fig, ax
+
+
+# ============================================================================
+# Variable Importance Visualization Functions
+# ============================================================================
+
+def plot_variable_importance_bar(
+    importance_df: pd.DataFrame,
+    top_n: int = 20,
+    method: Optional[str] = None,
+    figsize: Tuple[int, int] = (10, 8),
+    title: Optional[str] = None,
+    ax: Optional[plt.Axes] = None
+) -> Tuple[plt.Figure, plt.Axes]:
+    """
+    Create horizontal bar plot of feature importances with error bars.
+
+    Parameters
+    ----------
+    importance_df : pd.DataFrame
+        Importance results with columns: feature, method, importance,
+        importance_ci_lower, importance_ci_upper
+    top_n : int, default=20
+        Number of top features to display
+    method : str, optional
+        Filter by specific method. If None, uses first method in data.
+    figsize : tuple, default=(10, 8)
+        Figure size
+    title : str, optional
+        Plot title
+    ax : matplotlib.axes.Axes, optional
+        Axes to plot on
+
+    Returns
+    -------
+    fig : matplotlib.figure.Figure
+    ax : matplotlib.axes.Axes
+    """
+    if ax is None:
+        fig, ax = plt.subplots(figsize=figsize)
+    else:
+        fig = ax.get_figure()
+
+    # Filter by method if specified
+    df = importance_df.copy()
+    if method is not None:
+        df = df[df['method'] == method]
+    else:
+        # Use first method if multiple present
+        if 'method' in df.columns:
+            method = df['method'].iloc[0]
+            df = df[df['method'] == method]
+
+    # Get top N features
+    df = df.nlargest(top_n, 'importance')
+    df = df.sort_values('importance')  # Ascending for horizontal bars
+
+    # Calculate error bars
+    if 'importance_ci_lower' in df.columns and 'importance_ci_upper' in df.columns:
+        xerr_lower = df['importance'] - df['importance_ci_lower']
+        xerr_upper = df['importance_ci_upper'] - df['importance']
+        xerr = [xerr_lower.values, xerr_upper.values]
+    else:
+        xerr = None
+
+    # Plot bars
+    y_pos = np.arange(len(df))
+    ax.barh(y_pos, df['importance'], xerr=xerr,
+            capsize=3, color='#1f77b4', alpha=0.7, ecolor='black')
+
+    # Labels
+    ax.set_yticks(y_pos)
+    ax.set_yticklabels(df['feature'])
+    ax.set_xlabel('Importance', fontsize=12, fontweight='bold')
+    ax.set_title(title or f'Variable Importance - {method} (Top {top_n})',
+                fontsize=14, fontweight='bold')
+    ax.grid(True, alpha=0.3, axis='x')
+
+    plt.tight_layout()
+    return fig, ax
+
+
+def plot_variable_importance_heatmap(
+    importance_df: pd.DataFrame,
+    top_n: int = 30,
+    figsize: Tuple[int, int] = (12, 10),
+    title: Optional[str] = None,
+    ax: Optional[plt.Axes] = None
+) -> Tuple[plt.Figure, plt.Axes]:
+    """
+    Create heatmap comparing feature importance across methods.
+
+    Parameters
+    ----------
+    importance_df : pd.DataFrame
+        Importance results
+    top_n : int, default=30
+        Number of top features
+    figsize : tuple, default=(12, 10)
+        Figure size
+    title : str, optional
+        Plot title
+    ax : matplotlib.axes.Axes, optional
+        Axes to plot on
+
+    Returns
+    -------
+    fig : matplotlib.figure.Figure
+    ax : matplotlib.axes.Axes
+    """
+    # Pivot to wide format
+    pivot = importance_df.pivot_table(
+        index='feature',
+        columns='method',
+        values='importance_normalized'
+    )
+
+    # Get top features by max importance
+    pivot['_max'] = pivot.max(axis=1)
+    pivot = pivot.nlargest(top_n, '_max').drop('_max', axis=1)
+
+    # Plot heatmap
+    if ax is None:
+        fig, ax = plt.subplots(figsize=figsize)
+    else:
+        fig = ax.get_figure()
+
+    # Create heatmap
+    im = ax.imshow(pivot.values, cmap='YlOrRd', aspect='auto')
+
+    # Set ticks
+    ax.set_xticks(np.arange(len(pivot.columns)))
+    ax.set_yticks(np.arange(len(pivot.index)))
+    ax.set_xticklabels(pivot.columns)
+    ax.set_yticklabels(pivot.index)
+
+    # Rotate x labels
+    plt.setp(ax.get_xticklabels(), rotation=45, ha='right')
+
+    # Colorbar
+    cbar = plt.colorbar(im, ax=ax)
+    cbar.set_label('Normalized Importance', rotation=270, labelpad=20)
+
+    # Title
+    ax.set_title(title or f'Variable Importance Comparison (Top {top_n})',
+                fontsize=14, fontweight='bold')
+
+    plt.tight_layout()
+    return fig, ax
+
+
+def plot_feature_clusters(
+    cluster_df: pd.DataFrame,
+    figsize: Tuple[int, int] = (12, 8),
+    title: Optional[str] = None
+) -> Tuple[plt.Figure, plt.Axes]:
+    """
+    Visualize feature clusters from grouped PFI.
+
+    Parameters
+    ----------
+    cluster_df : pd.DataFrame
+        Cluster assignments with columns: feature, group_id
+    figsize : tuple, default=(12, 8)
+        Figure size
+    title : str, optional
+        Plot title
+
+    Returns
+    -------
+    fig : matplotlib.figure.Figure
+    ax : matplotlib.axes.Axes
+    """
+    fig, ax = plt.subplots(figsize=figsize)
+
+    # Group features by cluster
+    groups = cluster_df.groupby('group_id')['feature'].apply(list)
+
+    # Create text visualization of clusters
+    y_pos = 0
+    for group_id, features in groups.items():
+        features_str = ', '.join(features)
+        ax.text(0.1, y_pos, f"Group {group_id}: {features_str}",
+               fontsize=10, verticalalignment='top', wrap=True)
+        y_pos -= 0.1
+
+    ax.set_xlim(0, 1)
+    ax.set_ylim(-len(groups) * 0.1 - 0.1, 0.1)
+    ax.axis('off')
+    ax.set_title(title or 'Feature Clusters (Grouped PFI)',
+                fontsize=14, fontweight='bold')
+
+    plt.tight_layout()
+    return fig, ax
+
+
+def plot_shap_summary(
+    shap_values: np.ndarray,
+    feature_names: List[str],
+    X: Optional[pd.DataFrame] = None,
+    plot_type: str = 'bar',
+    max_display: int = 20,
+    figsize: Tuple[int, int] = (10, 8),
+    title: Optional[str] = None,
+    ax: Optional[plt.Axes] = None
+) -> Tuple[plt.Figure, plt.Axes]:
+    """
+    Create SHAP summary plot.
+
+    Parameters
+    ----------
+    shap_values : np.ndarray
+        SHAP values (n_samples, n_features)
+    feature_names : list of str
+        Feature names
+    X : pd.DataFrame, optional
+        Feature matrix for detailed plots
+    plot_type : str, default='bar'
+        'bar' for mean absolute SHAP, 'beeswarm' for detailed
+    max_display : int, default=20
+        Maximum features to display
+    figsize : tuple, default=(10, 8)
+        Figure size
+    title : str, optional
+        Plot title
+    ax : matplotlib.axes.Axes, optional
+        Axes to plot on
+
+    Returns
+    -------
+    fig : matplotlib.figure.Figure
+    ax : matplotlib.axes.Axes
+    """
+    if ax is None:
+        fig, ax = plt.subplots(figsize=figsize)
+    else:
+        fig = ax.get_figure()
+
+    if plot_type == 'bar':
+        # Mean absolute SHAP values
+        mean_abs_shap = np.abs(shap_values).mean(axis=0)
+
+        # Sort and get top features
+        idx = np.argsort(mean_abs_shap)[-max_display:]
+        y_pos = np.arange(len(idx))
+
+        ax.barh(y_pos, mean_abs_shap[idx], color='#ff0051', alpha=0.7)
+        ax.set_yticks(y_pos)
+        ax.set_yticklabels([feature_names[i] for i in idx])
+        ax.set_xlabel('Mean |SHAP value|', fontsize=12, fontweight='bold')
+        ax.set_title(title or 'SHAP Feature Importance',
+                    fontsize=14, fontweight='bold')
+        ax.grid(True, alpha=0.3, axis='x')
+
+    else:
+        # For beeswarm/violin, would need shap package's built-in plot
+        # For now, just do bar plot
+        ax.text(0.5, 0.5, "Beeswarm plot requires SHAP package's plot function",
+               ha='center', va='center', transform=ax.transAxes)
+
+    plt.tight_layout()
+    return fig, ax

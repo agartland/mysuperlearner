@@ -5,6 +5,7 @@ from .meta_learners import NNLogLikEstimator, AUCEstimator, MeanEstimator, Inter
 from .error_handling import ErrorTracker, ErrorType
 from .evaluation import evaluate_super_learner_cv
 from .results import SuperLearnerCVResults
+from .variable_importance import compute_variable_importance, VariableImportanceResults
 from . import visualization
 
 __version__ = '0.1.0'
@@ -15,5 +16,7 @@ __all__ = [
 	'ErrorTracker', 'ErrorType',
 	'evaluate_super_learner_cv',
 	'SuperLearnerCVResults',
+	'compute_variable_importance',
+	'VariableImportanceResults',
 	'visualization'
 ]

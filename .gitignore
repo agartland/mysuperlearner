@@ -123,5 +123,18 @@ build/
 # Logs
 *.log
 
+# Claude Code
+.claude/
+
+# Quarto-generated files (keep HTML in docs, exclude from root)
+*_files/
+
+# Generated images from examples (exclude from root)
+*.png
+*.jpg
+*.jpeg
+!docs/**/*.png
+!docs/**/*.jpg
+
 # overrides
 !sitecustomize.py

@@ -1,0 +1,376 @@
+---
+title: "Variable Importance in mysuperlearner"
+format:
+  html:
+    code-fold: false
+    toc: true
+    toc-depth: 3
+    embed-resources: true
+jupyter: python3
+---
+
+# Variable Importance Module
+
+The variable importance module provides comprehensive tools for evaluating feature importance in fitted SuperLearner models.
+
+## Setup
+
+```{python}
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+from sklearn.linear_model import LogisticRegression
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.tree import DecisionTreeClassifier
+
+from mysuperlearner import ExtendedSuperLearner, compute_variable_importance
+
+# Set random seed for reproducibility
+np.random.seed(42)
+```
+
+## Create Synthetic Data
+
+Let's create a dataset with known feature importance to demonstrate the methods.
+
+```{python}
+# Create synthetic dataset with 10 features
+n_samples = 200
+n_features = 10
+
+# Generate features
+X_data = {}
+for i in range(n_features):
+    X_data[f'feature_{i}'] = np.random.randn(n_samples)
+
+X = pd.DataFrame(X_data)
+
+# Create target with known feature importance:
+# feature_0 and feature_1 are highly important
+# feature_2 and feature_3 are moderately important
+# remaining features are noise
+y = (
+    2.0 * X['feature_0'] +
+    1.5 * X['feature_1'] +
+    0.5 * X['feature_2'] +
+    0.3 * X['feature_3'] +
+    np.random.randn(n_samples) > 0
+).astype(int)
+
+print(f"Dataset shape: {X.shape}")
+print(f"Target distribution: {np.bincount(y)}")
+print(f"\nTrue importance ranking:")
+print("1. feature_0 (coefficient: 2.0)")
+print("2. feature_1 (coefficient: 1.5)")
+print("3. feature_2 (coefficient: 0.5)")
+print("4. feature_3 (coefficient: 0.3)")
+print("5-10. feature_4-9 (noise)")
+```
+
+## Fit SuperLearner
+
+```{python}
+# Create base learners
+learners = [
+    ('logistic', LogisticRegression(max_iter=500)),
+    ('rf', RandomForestClassifier(n_estimators=50, max_depth=5, random_state=42)),
+    ('tree', DecisionTreeClassifier(max_depth=3, random_state=42))
+]
+
+# Fit SuperLearner
+# IMPORTANT: Set store_X=True to enable variable importance
+sl = ExtendedSuperLearner(
+    method='nnloglik',
+    folds=5,
+    random_state=42
+)
+
+sl.fit_explicit(X, y, learners, store_X=True)
+
+print("SuperLearner fitted successfully!")
+print(f"\nMeta-learner weights:")
+for name, weight in zip([name for name, _ in learners], sl.meta_weights_):
+    print(f"  {name}: {weight:.4f}")
+```
+
+## Method 1: Permutation Feature Importance
+
+Permutation importance measures the decrease in model performance when a feature's values are randomly shuffled.
+
+```{python}
+print("Computing Permutation Feature Importance...")
+results_perm = compute_variable_importance(
+    sl,
+    method='permutation',
+    n_repeats=5,  # Repeat permutations for variance estimation
+    metric='auc',
+    random_state=42,
+    verbose=False
+)
+
+print("\nTop 5 most important features:")
+print(results_perm.summary(top_n=5))
+```
+
+### Visualize Permutation Importance
+
+```{python}
+#| fig-cap: "Permutation Feature Importance with 95% Confidence Intervals"
+#| fig-width: 10
+#| fig-height: 6
+
+fig, ax = results_perm.plot_importance_bar(top_n=10)
+plt.tight_layout()
+plt.show()
+```
+
+## Method 2: Drop-Column Importance
+
+Drop-column importance completely removes a feature and re-trains the model.
+
+```{python}
+print("Computing Drop-Column Feature Importance...")
+results_drop = compute_variable_importance(
+    sl,
+    method='drop_column',
+    metric='auc',
+    verbose=False
+)
+
+print("\nTop 5 most important features:")
+print(results_drop.summary(top_n=5))
+```
+
+## Method 3: Grouped Feature Importance
+
+Grouped importance uses hierarchical clustering to group correlated features and permutes entire groups.
+
+```{python}
+print("Computing Grouped Feature Importance...")
+results_grouped = compute_variable_importance(
+    sl,
+    method='grouped',
+    grouped_threshold=0.7,  # Cluster features with |correlation| > 0.7
+    n_repeats=5,
+    metric='auc',
+    random_state=42,
+    verbose=False
+)
+
+print("\nFeature clusters:")
+clusters = results_grouped.cluster_info.groupby('group_id')['feature'].apply(list)
+for group_id, features in clusters.items():
+    print(f"  Group {group_id}: {', '.join(features)}")
+
+print("\nTop 5 most important groups:")
+print(results_grouped.summary(top_n=5))
+```
+
+## Compare Multiple Methods
+
+We can compute multiple importance methods simultaneously and compare their results.
+
+```{python}
+print("Computing All Methods for Comparison...")
+results_all = compute_variable_importance(
+    sl,
+    method=['permutation', 'drop_column'],
+    n_repeats=5,
+    metric='auc',
+    random_state=42,
+    verbose=False
+)
+
+print("\nComparison of feature rankings across methods:")
+comparison = results_all.compare_methods()
+print(comparison)
+```
+
+### Heatmap Comparison
+
+```{python}
+#| fig-cap: "Feature Importance Comparison Across Methods"
+#| fig-width: 10
+#| fig-height: 8
+
+fig, ax = results_all.plot_importance_heatmap(top_n=10)
+plt.tight_layout()
+plt.show()
+```
+
+## Access Raw Results
+
+The results object contains both aggregated and fold-level data.
+
+```{python}
+print("Aggregated importance (first 5 features):")
+print(results_perm.importance_df.head())
+
+print("\n\nRaw fold-level importance (first 10 rows):")
+print(results_perm.raw_importance_df.head(10))
+```
+
+## Programmatic Access
+
+```{python}
+# Get top N features as a list
+top_features = results_perm.get_top_features(n=5)
+print(f"Top 5 features: {top_features}")
+
+# Access configuration
+print(f"\nAnalysis configuration:")
+for key, value in results_perm.config.items():
+    print(f"  {key}: {value}")
+```
+
+## API Reference
+
+### Main Function
+
+```python
+compute_variable_importance(
+    sl,                      # Fitted SuperLearner
+    method='permutation',    # str or list: 'permutation', 'drop_column', 'grouped', 'shap'
+    X=None,                  # Feature matrix (uses sl.X_ if None)
+    y=None,                  # Target (uses sl.y_ if None)
+    metric='auc',            # 'auc', 'accuracy', 'logloss', or callable
+    n_repeats=5,             # Permutation repeats for variance estimation
+    grouped_threshold=0.7,   # Correlation threshold for grouped PFI
+    random_state=None,       # Random seed
+    verbose=False,           # Print progress
+    n_jobs=1                 # Parallel jobs (not yet implemented)
+)
+```
+
+### VariableImportanceResults Methods
+
+- `summary(top_n=10, method=None)` - Top N features
+- `get_top_features(n=10, method=None)` - List of feature names
+- `compare_methods()` - Compare rankings across methods
+- `plot_importance_bar(top_n=20, method=None)` - Bar plot with CIs
+- `plot_importance_heatmap(top_n=30)` - Cross-method heatmap
+- `plot_grouped_clusters()` - Cluster visualization
+- `plot_shap_summary(X=None, plot_type='bar')` - SHAP plot (if method='shap')
+
+## Performance Considerations
+
+**Computational Cost:**
+
+- **Permutation**: O(n_features × n_folds × n_repeats × training_time)
+- **Drop-column**: O(n_features × n_folds × training_time)
+- **Grouped**: O(n_groups × n_folds × n_repeats × training_time) - faster when n_groups << n_features
+- **SHAP**: O(n_samples × n_features × n_background) - can be expensive
+
+**Memory:**
+
+- Setting `store_X=True` doubles SuperLearner memory usage
+- Alternative: Keep `store_X=False` and pass X explicitly
+
+**Example without storing X:**
+
+```{python}
+# Fit without store_X to save memory
+sl_memory_efficient = ExtendedSuperLearner(method='nnloglik', folds=5)
+sl_memory_efficient.fit_explicit(X, y, learners, store_X=False)
+
+# Provide X explicitly for importance
+results_explicit = compute_variable_importance(
+    sl_memory_efficient,
+    X=X,  # Pass explicitly
+    y=y,
+    method='permutation',
+    n_repeats=3,
+    verbose=False
+)
+
+print("Top 3 features (memory-efficient approach):")
+print(results_explicit.summary(top_n=3))
+```
+
+## Output DataFrame Structure
+
+### Aggregated Results
+
+```{python}
+print("Columns in aggregated importance DataFrame:")
+print(results_perm.importance_df.columns.tolist())
+print("\nExample row:")
+print(results_perm.importance_df.iloc[0])
+```
+
+### Raw Results
+
+```{python}
+print("\nColumns in raw importance DataFrame:")
+print(results_perm.raw_importance_df.columns.tolist())
+print("\nExample row:")
+print(results_perm.raw_importance_df.iloc[0])
+```
+
+## Custom Metrics
+
+You can provide custom metric functions:
+
+```{python}
+from sklearn.metrics import precision_score
+
+def custom_precision(y_true, y_pred):
+    """Custom metric: precision at 0.5 threshold"""
+    y_pred_binary = (y_pred > 0.5).astype(int)
+    return precision_score(y_true, y_pred_binary)
+
+results_custom = compute_variable_importance(
+    sl,
+    method='permutation',
+    metric=custom_precision,
+    n_repeats=3,
+    verbose=False
+)
+
+print("Top 5 features by custom precision metric:")
+print(results_custom.summary(top_n=5))
+```
+
+## Integration with SuperLearner Workflow
+
+```{python}
+# Example: Complete workflow
+# 1. Fit SuperLearner
+sl_workflow = ExtendedSuperLearner(method='nnloglik', folds=5)
+sl_workflow.fit_explicit(X, y, learners, store_X=True)
+
+print("SuperLearner fitted successfully!")
+
+# 2. Variable importance on fitted model
+importance = compute_variable_importance(
+    sl_workflow,
+    method='permutation',
+    n_repeats=5,
+    random_state=42,
+    verbose=False
+)
+
+print("\nTop 3 important features:")
+print(importance.summary(top_n=3))
+
+# 3. Make predictions on new data
+predictions = sl_workflow.predict_proba(X[:5])
+print(f"\nPredictions for first 5 samples:")
+print(predictions[:5, 1])  # Probability of class 1
+```
+
+## Summary
+
+The variable importance module provides:
+
+✅ **Multiple importance methods**: Permutation, drop-column, grouped, and SHAP
+
+✅ **Statistical rigor**: Confidence intervals, standard errors, fold-level estimates
+
+✅ **Flexibility**: Works with fitted SuperLearner or accepts X/y explicitly
+
+✅ **Visualization**: Built-in plotting functions with consistent styling
+
+✅ **Memory efficiency**: Optional X storage for memory-constrained environments
+
+For more examples, see `examples/variable_importance_example.py`.

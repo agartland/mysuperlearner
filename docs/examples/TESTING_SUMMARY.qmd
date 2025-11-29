@@ -9,6 +9,7 @@ format:
     toc-depth: 3
     code-fold: false
     code-tools: true
+    self-contained: true
     theme: cosmo
   pdf:
     toc: true

@@ -148,11 +148,45 @@ class ExtendedSuperLearner(BaseEstimator, ClassifierMixin):
         Z = np.clip(Z, self.trim, 1.0 - self.trim)
         return Z, cv_preds, fold_indices
 
-    def fit_explicit(self, X, y, base_learners: List[tuple], sample_weight=None):
+    def fit_explicit(self, X, y, base_learners: List[tuple], sample_weight=None, store_X=False):
         """Fit using explicit level-1 builder and refit base learners on full data.
 
-        base_learners: list of (name, estimator) tuples
+        Parameters
+        ----------
+        X : array-like or DataFrame of shape (n_samples, n_features)
+            Training feature matrix.
+        y : array-like of shape (n_samples,)
+            Target values (binary: 0 or 1).
+        base_learners : list of (name, estimator) tuples
+            Base learning algorithms to include in ensemble.
+        sample_weight : array-like of shape (n_samples,), optional
+            Sample weights. If provided, learners that support sample_weight
+            will use them during training.
+        store_X : bool, default=False
+            Whether to store training data for variable importance calculations.
+            If True, enables variable importance methods but increases memory usage.
+            Feature names are always stored (minimal overhead).
+
+        Returns
+        -------
+        self : ExtendedSuperLearner
+            Fitted estimator.
         """
+        # Store feature names before validation converts to array
+        if hasattr(X, 'columns'):
+            # DataFrame input - extract feature names
+            self.feature_names_ = list(X.columns)
+            if store_X:
+                import pandas as pd
+                self.X_ = X.copy() if isinstance(X, pd.DataFrame) else pd.DataFrame(X, columns=self.feature_names_)
+        else:
+            # Array input - create generic feature names
+            n_features = X.shape[1] if hasattr(X, 'shape') else len(X[0])
+            self.feature_names_ = [f"feature_{i}" for i in range(n_features)]
+            if store_X:
+                import pandas as pd
+                self.X_ = pd.DataFrame(X, columns=self.feature_names_)
+
         # Validate inputs
         X_arr, y_arr = check_X_y(X, y)
         self.y_ = y_arr  # Store for diagnostics
