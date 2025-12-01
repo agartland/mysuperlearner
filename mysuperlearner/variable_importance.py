@@ -20,6 +20,7 @@ from sklearn.metrics import roc_auc_score, accuracy_score, log_loss
 from scipy import stats
 from scipy.cluster import hierarchy
 from scipy.spatial.distance import squareform
+from joblib import Parallel, delayed
 
 # Conditional SHAP import
 try:
@@ -287,7 +288,10 @@ def compute_variable_importance(
     verbose : bool, default=False
         Print progress information
     n_jobs : int, default=1
-        Number of parallel jobs for computation (not yet implemented)
+        Number of parallel jobs for computation. If -1, uses all available CPUs.
+        Parallelizes computation across features (permutation/drop_column methods)
+        or groups (grouped method). Uses joblib with 'loky' backend.
+        Note: SHAP method does not support parallelization via this parameter.
 
     Returns
     -------
@@ -393,19 +397,19 @@ def compute_variable_importance(
 
         if method_name == 'permutation':
             raw_df = _permutation_importance(
-                sl, X, y, metric_func, n_repeats, random_state, verbose
+                sl, X, y, metric_func, n_repeats, random_state, verbose, n_jobs
             )
             agg_df = _aggregate_importance_results(raw_df, method_name)
 
         elif method_name == 'drop_column':
             raw_df = _drop_column_importance(
-                sl, X, y, metric_func, verbose
+                sl, X, y, metric_func, verbose, n_jobs
             )
             agg_df = _aggregate_importance_results(raw_df, method_name)
 
         elif method_name == 'grouped':
             raw_df, cluster_df = _grouped_importance(
-                sl, X, y, metric_func, grouped_threshold, n_repeats, random_state, verbose
+                sl, X, y, metric_func, grouped_threshold, n_repeats, random_state, verbose, n_jobs
             )
             agg_df = _aggregate_importance_results(raw_df, method_name)
             cluster_info = cluster_df
@@ -675,6 +679,86 @@ def _refit_with_modified_data(
 # Importance Method Implementations
 # ============================================================================
 
+def _compute_single_feature_permutation(
+    feat_idx: int,
+    feature_name: str,
+    X: pd.DataFrame,
+    y: np.ndarray,
+    sl,  # ExtendedSuperLearner
+    n_repeats: int,
+    baseline_fold_scores: List[float],
+    metric_func: Callable,
+    random_state: Optional[int]
+) -> List[Dict]:
+    """
+    Compute permutation importance for a single feature.
+
+    This helper function is designed for parallel execution via joblib.
+    Each call processes one feature independently across all repeats and folds.
+
+    Parameters
+    ----------
+    feat_idx : int
+        Index of the feature to permute
+    feature_name : str
+        Name of the feature
+    X : pd.DataFrame
+        Feature matrix
+    y : np.ndarray
+        Target vector
+    sl : ExtendedSuperLearner
+        Fitted SuperLearner object
+    n_repeats : int
+        Number of permutation repeats
+    baseline_fold_scores : list of float
+        Baseline scores for each fold
+    metric_func : callable
+        Metric function for evaluation
+    random_state : int, optional
+        Random seed (offset by feat_idx for reproducibility)
+
+    Returns
+    -------
+    results_list : list of dict
+        Raw importance results for this feature across all folds and repeats
+    """
+    # Initialize random number generator with feature-specific offset
+    rng = np.random.RandomState(random_state + feat_idx if random_state is not None else None)
+    results_list = []
+
+    for repeat_idx in range(n_repeats):
+        # Create copy of X and permute this feature
+        X_permuted = X.copy()
+
+        # Permute the feature column
+        if isinstance(X_permuted, pd.DataFrame):
+            X_permuted.iloc[:, feat_idx] = rng.permutation(X_permuted.iloc[:, feat_idx].values)
+        else:
+            X_permuted[:, feat_idx] = rng.permutation(X_permuted[:, feat_idx])
+
+        # Re-train with permuted data
+        _, permuted_fold_scores = _refit_with_modified_data(
+            sl, X_permuted, y, sl.fold_indices_, metric_func, verbose=False
+        )
+
+        # Compute importance for each fold
+        for fold_idx, (baseline_fold, permuted_fold) in enumerate(
+            zip(baseline_fold_scores, permuted_fold_scores)
+        ):
+            importance = baseline_fold - permuted_fold
+
+            results_list.append({
+                'feature': feature_name,
+                'fold': fold_idx,
+                'repeat': repeat_idx,
+                'importance': importance,
+                'baseline_score': baseline_fold,
+                'modified_score': permuted_fold
+            })
+
+    return results_list
+
+
 def _permutation_importance(
     sl,  # ExtendedSuperLearner
     X: pd.DataFrame,
@@ -682,14 +766,15 @@ def _permutation_importance(
     metric_func: Callable,
     n_repeats: int,
     random_state: Optional[int],
-    verbose: bool
+    verbose: bool,
+    n_jobs: int = 1
 ) -> pd.DataFrame:
     """
     Permutation Feature Importance with re-training.
 
     Algorithm:
     1. Compute baseline using sl.fold_indices_ for CV consistency
-    2. For each feature:
+    2. For each feature (parallelized if n_jobs > 1):
        a. For each fold in sl.fold_indices_:
           - For each repeat:
             - Permute feature values within training set
@@ -699,6 +784,26 @@ def _permutation_importance(
             - Compute metric
             - Importance = baseline - permuted_score
     3. Return raw DataFrame: [feature, fold, repeat, importance, baseline, permuted]
+
+    Parameters
+    ----------
+    sl : ExtendedSuperLearner
+        Fitted SuperLearner object
+    X : pd.DataFrame
+        Feature matrix
+    y : np.ndarray
+        Target vector
+    metric_func : callable
+        Metric function for evaluation
+    n_repeats : int
+        Number of permutation repeats
+    random_state : int, optional
+        Random seed for reproducibility
+    verbose : bool
+        Print progress information
+    n_jobs : int, default=1
+        Number of parallel jobs. If -1, uses all CPUs.
+        Parallelizes computation across features.
 
     Returns
     -------
@@ -718,50 +823,104 @@ def _permutation_importance(
     # Get feature names
     feature_names = X.columns.tolist() if isinstance(X, pd.DataFrame) else [f"feature_{i}" for i in range(X.shape[1])]
 
-    # Initialize random number generator
-    rng = np.random.RandomState(random_state)
-
-    # Store results for each feature
-    results_list = []
-
-    # Iterate over features
-    for feat_idx, feature_name in enumerate(feature_names):
-        if verbose:
-            print(f"  Feature {feat_idx + 1}/{len(feature_names)}: {feature_name}")
-
-        # Repeat permutation multiple times for variance estimation
-        for repeat_idx in range(n_repeats):
-            # Create copy of X and permute this feature
-            X_permuted = X.copy()
-
-            # Permute the feature column
-            if isinstance(X_permuted, pd.DataFrame):
-                X_permuted.iloc[:, feat_idx] = rng.permutation(X_permuted.iloc[:, feat_idx].values)
-            else:
-                X_permuted[:, feat_idx] = rng.permutation(X_permuted[:, feat_idx])
-
-            # Re-train with permuted data
-            permuted_score, permuted_fold_scores = _refit_with_modified_data(
-                sl, X_permuted, y, sl.fold_indices_, metric_func, verbose=False
+    # Parallel or sequential computation
+    if n_jobs == 1:
+        # Sequential execution (original behavior)
+        all_results = []
+        for feat_idx, feature_name in enumerate(feature_names):
+            if verbose:
+                print(f"  Feature {feat_idx + 1}/{len(feature_names)}: {feature_name}")
+            results = _compute_single_feature_permutation(
+                feat_idx, feature_name, X, y, sl, n_repeats,
+                baseline_fold_scores, metric_func, random_state
             )
+            all_results.extend(results)
+    else:
+        # Parallel execution
+        if verbose:
+            print(f"  Computing importance for {len(feature_names)} features in parallel (n_jobs={n_jobs})...")
 
-            # Compute importance for each fold
-            for fold_idx, (baseline_fold, permuted_fold) in enumerate(
-                zip(baseline_fold_scores, permuted_fold_scores)
-            ):
-                importance = baseline_fold - permuted_fold
+        all_results = Parallel(n_jobs=n_jobs, verbose=10 if verbose else 0)(
+            delayed(_compute_single_feature_permutation)(
+                feat_idx, feature_name, X, y, sl, n_repeats,
+                baseline_fold_scores, metric_func, random_state
+            )
+            for feat_idx, feature_name in enumerate(feature_names)
+        )
+        # Flatten results (list of lists -> single list)
+        all_results = [item for sublist in all_results for item in sublist]
 
-                results_list.append({
-                    'feature': feature_name,
-                    'fold': fold_idx,
-                    'repeat': repeat_idx,
-                    'importance': importance,
-                    'baseline_score': baseline_fold,
-                    'modified_score': permuted_fold
-                })
-
-    results_df = pd.DataFrame(results_list)
+    results_df = pd.DataFrame(all_results)
     return results_df
+
+
+def _compute_single_feature_drop_column(
+    feat_idx: int,
+    feature_name: str,
+    X: pd.DataFrame,
+    y: np.ndarray,
+    sl,  # ExtendedSuperLearner
+    baseline_fold_scores: List[float],
+    metric_func: Callable
+) -> List[Dict]:
+    """
+    Compute drop-column importance for a single feature.
+
+    This helper function is designed for parallel execution via joblib.
+    Each call processes one feature independently across all folds.
+
+    Parameters
+    ----------
+    feat_idx : int
+        Index of the feature to drop
+    feature_name : str
+        Name of the feature
+    X : pd.DataFrame
+        Feature matrix
+    y : np.ndarray
+        Target vector
+    sl : ExtendedSuperLearner
+        Fitted SuperLearner object
+    baseline_fold_scores : list of float
+        Baseline scores for each fold
+    metric_func : callable
+        Metric function for evaluation
+
+    Returns
+    -------
+    results_list : list of dict
+        Raw importance results for this feature across all folds
+    """
+    # Create X with feature removed
+    if isinstance(X, pd.DataFrame):
+        X_reduced = X.drop(columns=[feature_name])
+    else:
+        # For numpy arrays, remove the column
+        cols_to_keep = [i for i in range(X.shape[1]) if i != feat_idx]
+        X_reduced = X[:, cols_to_keep]
+
+    # Re-train with reduced data
+    _, reduced_fold_scores = _refit_with_modified_data(
+        sl, X_reduced, y, sl.fold_indices_, metric_func, verbose=False
+    )
+
+    # Compute importance for each fold
+    results_list = []
+    for fold_idx, (baseline_fold, reduced_fold) in enumerate(
+        zip(baseline_fold_scores, reduced_fold_scores)
+    ):
+        importance = baseline_fold - reduced_fold
+
+        results_list.append({
+            'feature': feature_name,
+            'fold': fold_idx,
+            'repeat': -1,  # No repeats for drop-column
+            'importance': importance,
+            'baseline_score': baseline_fold,
+            'modified_score': reduced_fold
+        })
+
+    return results_list
 
 
 def _drop_column_importance(
@@ -769,10 +928,27 @@ def _drop_column_importance(
     X: pd.DataFrame,
     y: np.ndarray,
     metric_func: Callable,
-    verbose: bool
+    verbose: bool,
+    n_jobs: int = 1
 ) -> pd.DataFrame:
     """
     Drop-column importance (remove feature entirely and re-train).
+
+    Parameters
+    ----------
+    sl : ExtendedSuperLearner
+        Fitted SuperLearner object
+    X : pd.DataFrame
+        Feature matrix
+    y : np.ndarray
+        Target vector
+    metric_func : callable
+        Metric function for evaluation
+    verbose : bool
+        Print progress information
+    n_jobs : int, default=1
+        Number of parallel jobs. If -1, uses all CPUs.
+        Parallelizes computation across features.
 
     Returns
     -------
@@ -792,44 +968,113 @@ def _drop_column_importance(
     # Get feature names
     feature_names = X.columns.tolist() if isinstance(X, pd.DataFrame) else [f"feature_{i}" for i in range(X.shape[1])]
 
-    # Store results
-    results_list = []
-
-    # Iterate over features
-    for feat_idx, feature_name in enumerate(feature_names):
+    # Parallel or sequential computation
+    if n_jobs == 1:
+        # Sequential execution (original behavior)
+        all_results = []
+        for feat_idx, feature_name in enumerate(feature_names):
+            if verbose:
+                print(f"  Feature {feat_idx + 1}/{len(feature_names)}: {feature_name}")
+            results = _compute_single_feature_drop_column(
+                feat_idx, feature_name, X, y, sl, baseline_fold_scores, metric_func
+            )
+            all_results.extend(results)
+    else:
+        # Parallel execution
         if verbose:
-            print(f"  Feature {feat_idx + 1}/{len(feature_names)}: {feature_name}")
+            print(f"  Computing importance for {len(feature_names)} features in parallel (n_jobs={n_jobs})...")
 
-        # Create copy of X with this feature removed
-        if isinstance(X, pd.DataFrame):
-            X_reduced = X.drop(columns=[feature_name])
-        else:
-            # For numpy arrays, remove the column
-            cols_to_keep = [i for i in range(X.shape[1]) if i != feat_idx]
-            X_reduced = X[:, cols_to_keep]
+        all_results = Parallel(n_jobs=n_jobs, verbose=10 if verbose else 0)(
+            delayed(_compute_single_feature_drop_column)(
+                feat_idx, feature_name, X, y, sl, baseline_fold_scores, metric_func
+            )
+            for feat_idx, feature_name in enumerate(feature_names)
+        )
+        # Flatten results (list of lists -> single list)
+        all_results = [item for sublist in all_results for item in sublist]
 
-        # Re-train with reduced data
-        reduced_score, reduced_fold_scores = _refit_with_modified_data(
-            sl, X_reduced, y, sl.fold_indices_, metric_func, verbose=False
+    results_df = pd.DataFrame(all_results)
+    return results_df
+
+
+def _compute_single_group_permutation(
+    group_id: int,
+    group_features: List[str],
+    X: pd.DataFrame,
+    y: np.ndarray,
+    sl,  # ExtendedSuperLearner
+    n_repeats: int,
+    baseline_fold_scores: List[float],
+    metric_func: Callable,
+    random_state: Optional[int]
+) -> List[Dict]:
+    """
+    Compute permutation importance for a single feature group.
+
+    This helper function is designed for parallel execution via joblib.
+    Each call processes one feature group independently across all repeats and folds.
+
+    Parameters
+    ----------
+    group_id : int
+        ID of the feature group
+    group_features : list of str
+        List of feature names in this group
+    X : pd.DataFrame
+        Feature matrix
+    y : np.ndarray
+        Target vector
+    sl : ExtendedSuperLearner
+        Fitted SuperLearner object
+    n_repeats : int
+        Number of permutation repeats
+    baseline_fold_scores : list of float
+        Baseline scores for each fold
+    metric_func : callable
+        Metric function for evaluation
+    random_state : int, optional
+        Random seed (offset by group_id for reproducibility)
+
+    Returns
+    -------
+    results_list : list of dict
+        Raw importance results for this group across all folds and repeats
+    """
+    # Initialize random number generator with group-specific offset
+    rng = np.random.RandomState(random_state + group_id if random_state is not None else None)
+    results_list = []
+    group_name = f"group_{group_id}"
+
+    for repeat_idx in range(n_repeats):
+        # Create copy of X and permute all features in this group
+        X_permuted = X.copy()
+
+        for feature in group_features:
+            X_permuted[feature] = rng.permutation(X_permuted[feature].values)
+
+        # Re-train with permuted data
+        _, permuted_fold_scores = _refit_with_modified_data(
+            sl, X_permuted, y, sl.fold_indices_, metric_func, verbose=False
         )
 
         # Compute importance for each fold
-        for fold_idx, (baseline_fold, reduced_fold) in enumerate(
-            zip(baseline_fold_scores, reduced_fold_scores)
+        for fold_idx, (baseline_fold, permuted_fold) in enumerate(
+            zip(baseline_fold_scores, permuted_fold_scores)
         ):
-            importance = baseline_fold - reduced_fold
+            importance = baseline_fold - permuted_fold
 
             results_list.append({
-                'feature': feature_name,
+                'feature': group_name,
+                'group_id': group_id,
+                'features_in_group': ','.join(group_features),
                 'fold': fold_idx,
-                'repeat': -1,  # No repeats for drop-column
+                'repeat': repeat_idx,
                 'importance': importance,
                 'baseline_score': baseline_fold,
-                'modified_score': reduced_fold
+                'modified_score': permuted_fold
             })
 
-    results_df = pd.DataFrame(results_list)
-    return results_df
+    return results_list
 
 
 def _grouped_importance(
@@ -840,10 +1085,33 @@ def _grouped_importance(
     correlation_threshold: float,
     n_repeats: int,
     random_state: Optional[int],
-    verbose: bool
+    verbose: bool,
+    n_jobs: int = 1
 ) -> Tuple[pd.DataFrame, pd.DataFrame]:
     """
     Grouped Permutation Feature Importance using hierarchical clustering.
+
+    Parameters
+    ----------
+    sl : ExtendedSuperLearner
+        Fitted SuperLearner object
+    X : pd.DataFrame
+        Feature matrix
+    y : np.ndarray
+        Target vector
+    metric_func : callable
+        Metric function for evaluation
+    correlation_threshold : float
+        Correlation threshold for grouping features
+    n_repeats : int
+        Number of permutation repeats
+    random_state : int, optional
+        Random seed for reproducibility
+    verbose : bool
+        Print progress information
+    n_jobs : int, default=1
+        Number of parallel jobs. If -1, uses all CPUs.
+        Parallelizes computation across feature groups.
 
     Returns
     -------
@@ -901,53 +1169,41 @@ def _grouped_importance(
         sl, X, y, sl.fold_indices_, metric_func, verbose=False
     )
 
-    # Initialize random number generator
-    rng = np.random.RandomState(random_state)
-
-    # Store results
-    results_list = []
-
-    # Iterate over unique groups
+    # Prepare groups for parallel/sequential computation
     unique_groups = sorted(set(cluster_labels))
-    for group_id in unique_groups:
-        # Get features in this group
-        group_features = [f for f, c in zip(feature_names, cluster_labels) if c == group_id]
-        group_name = f"group_{group_id}"
+    group_features_list = [
+        [f for f, c in zip(feature_names, cluster_labels) if c == group_id]
+        for group_id in unique_groups
+    ]
 
-        if verbose:
-            print(f"  Group {group_id} ({len(group_features)} features): {', '.join(group_features[:3])}{'...' if len(group_features) > 3 else ''}")
-
-        # Repeat permutation multiple times
-        for repeat_idx in range(n_repeats):
-            # Create copy of X and permute all features in this group
-            X_permuted = X.copy()
-
-            for feature in group_features:
-                X_permuted[feature] = rng.permutation(X_permuted[feature].values)
-
-            # Re-train with permuted data
-            permuted_score, permuted_fold_scores = _refit_with_modified_data(
-                sl, X_permuted, y, sl.fold_indices_, metric_func, verbose=False
+    # Parallel or sequential computation
+    if n_jobs == 1:
+        # Sequential execution (original behavior)
+        all_results = []
+        for group_id, group_features in zip(unique_groups, group_features_list):
+            if verbose:
+                print(f"  Group {group_id} ({len(group_features)} features): {', '.join(group_features[:3])}{'...' if len(group_features) > 3 else ''}")
+            results = _compute_single_group_permutation(
+                group_id, group_features, X, y, sl, n_repeats,
+                baseline_fold_scores, metric_func, random_state
             )
+            all_results.extend(results)
+    else:
+        # Parallel execution
+        if verbose:
+            print(f"  Computing importance for {len(unique_groups)} groups in parallel (n_jobs={n_jobs})...")
 
-            # Compute importance for each fold
-            for fold_idx, (baseline_fold, permuted_fold) in enumerate(
-                zip(baseline_fold_scores, permuted_fold_scores)
-            ):
-                importance = baseline_fold - permuted_fold
+        all_results = Parallel(n_jobs=n_jobs, verbose=10 if verbose else 0)(
+            delayed(_compute_single_group_permutation)(
+                group_id, group_features, X, y, sl, n_repeats,
+                baseline_fold_scores, metric_func, random_state
+            )
+            for group_id, group_features in zip(unique_groups, group_features_list)
+        )
+        # Flatten results (list of lists -> single list)
+        all_results = [item for sublist in all_results for item in sublist]
 
-                results_list.append({
-                    'feature': group_name,  # Use group name instead of individual features
-                    'group_id': group_id,
-                    'features_in_group': ','.join(group_features),
-                    'fold': fold_idx,
-                    'repeat': repeat_idx,
-                    'importance': importance,
-                    'baseline_score': baseline_fold,
-                    'modified_score': permuted_fold
-                })
-
-    results_df = pd.DataFrame(results_list)
+    results_df = pd.DataFrame(all_results)
     return results_df, cluster_df
 
 

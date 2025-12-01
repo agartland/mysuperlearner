@@ -189,19 +189,15 @@
 \@ifpackageloaded{subcaption}{}{\usepackage{subcaption}}
 \makeatother
 \makeatletter
-\definecolor{QuartoInternalColor7}{rgb}{0.20,0.40,0.40}
-\definecolor{QuartoInternalColor13}{rgb}{0.60,0.20,0.40}
-\definecolor{QuartoInternalColor10}{rgb}{0.60,0.00,1.00}
-\definecolor{QuartoInternalColor8}{rgb}{0.70,0.49,0.07}
-\definecolor{QuartoInternalColor1}{rgb}{0.70,0.17,0.19}
+\definecolor{QuartoInternalColor4}{rgb}{0.00,0.45,0.15}
 \definecolor{QuartoInternalColor3}{rgb}{0.15,0.56,0.56}
-\definecolor{QuartoInternalColor12}{rgb}{0.80,0.20,0.20}
-\definecolor{QuartoInternalColor11}{rgb}{0.00,0.40,0.79}
-\definecolor{QuartoInternalColor6}{rgb}{0.74,0.74,0.74}
 \definecolor{QuartoInternalColor2}{rgb}{0,0,0}
 \definecolor{QuartoInternalColor9}{rgb}{0.60,0.20,0.00}
+\definecolor{QuartoInternalColor6}{rgb}{0.74,0.74,0.74}
+\definecolor{QuartoInternalColor1}{rgb}{0.70,0.17,0.19}
+\definecolor{QuartoInternalColor7}{rgb}{0.20,0.40,0.40}
 \definecolor{QuartoInternalColor5}{rgb}{0.00,0.40,0.00}
-\definecolor{QuartoInternalColor4}{rgb}{0.00,0.45,0.15}
+\definecolor{QuartoInternalColor8}{rgb}{0.70,0.49,0.07}
 \makeatother
 \usepackage{bookmark}
 \IfFileExists{xurl.sty}{\usepackage{xurl}}{} % add URL line breaks if available
@@ -491,16 +487,16 @@ output, tracked in errors \\
 \end{Shaded}
 
 \begin{Highlighting}
-\textcolor{black}{ModuleNotFoundError: No module named 'mysuperlearner.evaluation'}
+\textcolor{black}{ModuleNotFoundError: No module named 'mysuperlearner'}
 \textcolor{black}{}\textcolor{QuartoInternalColor1}{---------------------------------------------------------------------------}\textcolor{QuartoInternalColor2}{}
 \textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor1}{ModuleNotFoundError}\textcolor{QuartoInternalColor2}{                       Traceback (most recent call last)}
-\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor3}{Cell}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor3}{ }\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{In[1]}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{, line 15}\textcolor{QuartoInternalColor2}{}
-\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{     13}\textcolor{QuartoInternalColor2}{ }\textcolor{QuartoInternalColor5}{from}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor6}{ }\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor2}{mysuperlearner}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor6}{ }\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor5}{import}\textcolor{QuartoInternalColor2}{ SuperLearner}
+\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor3}{Cell}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor3}{ }\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{In[1]}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{, line 13}\textcolor{QuartoInternalColor2}{}
+\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{     10}\textcolor{QuartoInternalColor2}{ }\textcolor{QuartoInternalColor5}{from}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor6}{ }\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor2}{sklearn}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor2}{.}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor2}{base}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor6}{ }\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor5}{import}\textcolor{QuartoInternalColor2}{ BaseEstimator, ClassifierMixin}
+\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{     12}\textcolor{QuartoInternalColor2}{ }\textcolor{QuartoInternalColor7}{# Import mysuperlearner}\textcolor{QuartoInternalColor2}{}
+\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{---> }\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{13}\textcolor{QuartoInternalColor2}{ }\textcolor{QuartoInternalColor5}{from}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor6}{ }\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor2}{mysuperlearner}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor6}{ }\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor5}{import}\textcolor{QuartoInternalColor2}{ SuperLearner}
 \textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{     14}\textcolor{QuartoInternalColor2}{ }\textcolor{QuartoInternalColor5}{from}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor6}{ }\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor2}{mysuperlearner}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor2}{.}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor2}{meta\_learners}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor6}{ }\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor5}{import}\textcolor{QuartoInternalColor2}{ InterceptOnlyEstimator}
-\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{---> }\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{15}\textcolor{QuartoInternalColor2}{ }\textcolor{QuartoInternalColor5}{from}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor6}{ }\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor2}{mysuperlearner}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor2}{.}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor2}{evaluation}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor6}{ }\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor5}{import}\textcolor{QuartoInternalColor2}{ evaluate\_super\_learner\_cv}
-\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{     16}\textcolor{QuartoInternalColor2}{ }\textcolor{QuartoInternalColor5}{from}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor6}{ }\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor2}{mysuperlearner}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor2}{.}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor2}{error\_handling}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor6}{ }\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor5}{import}\textcolor{QuartoInternalColor2}{ ErrorType}
-\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{     18}\textcolor{QuartoInternalColor2}{ }\textcolor{QuartoInternalColor7}{# Set random seed for reproducibility}\textcolor{QuartoInternalColor2}{}
-\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor1}{ModuleNotFoundError}\textcolor{QuartoInternalColor2}{: No module named 'mysuperlearner.evaluation'}
+\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{     15}\textcolor{QuartoInternalColor2}{ }\textcolor{QuartoInternalColor5}{from}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor6}{ }\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor2}{mysuperlearner}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor2}{.}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor2}{evaluation}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor6}{ }\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor5}{import}\textcolor{QuartoInternalColor2}{ evaluate\_super\_learner\_cv}
+\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor1}{ModuleNotFoundError}\textcolor{QuartoInternalColor2}{: No module named 'mysuperlearner'}
 \end{Highlighting}
 
 \begin{center}\rule{0.5\linewidth}{0.5pt}\end{center}
@@ -596,30 +592,22 @@ SCENARIO 1: Learner Fails During Final Refit
 \end{verbatim}
 
 \begin{Highlighting}
-\textcolor{black}{ValueError: No learners provided. Either pass learners to the constructor (SuperLearner(learners=[...])) or use fit\_explicit(X, y, base\_learners) (deprecated).}
+\textcolor{black}{NameError: name 'SuperLearner' is not defined}
 \textcolor{black}{}\textcolor{QuartoInternalColor1}{---------------------------------------------------------------------------}\textcolor{QuartoInternalColor2}{}
-\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor1}{ValueError}\textcolor{QuartoInternalColor2}{                                Traceback (most recent call last)}
-\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor3}{Cell}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor3}{ }\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{In[2]}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{, line 36}\textcolor{QuartoInternalColor2}{}
+\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor1}{NameError}\textcolor{QuartoInternalColor2}{                                 Traceback (most recent call last)}
+\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor3}{Cell}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor3}{ }\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{In[2]}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{, line 25}\textcolor{QuartoInternalColor2}{}
+\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{     22}\textcolor{QuartoInternalColor2}{ }\textcolor{QuartoInternalColor5}{print}\textcolor{QuartoInternalColor2}{(}\textcolor{QuartoInternalColor8}{"}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor8}{=}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor8}{"}\textcolor{QuartoInternalColor2}{*}\textcolor{QuartoInternalColor4}{70}\textcolor{QuartoInternalColor2}{)}
+\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{     24}\textcolor{QuartoInternalColor2}{ }\textcolor{QuartoInternalColor7}{# Fit with error tracking}\textcolor{QuartoInternalColor2}{}
+\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{---> }\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{25}\textcolor{QuartoInternalColor2}{ sl = }\textcolor{QuartoInternalColor2}{SuperLearner}\textcolor{QuartoInternalColor2}{(}
+\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{     26}\textcolor{QuartoInternalColor2}{     method=}\textcolor{QuartoInternalColor8}{'}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor8}{nnloglik}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor8}{'}\textcolor{QuartoInternalColor2}{,}
+\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{     27}\textcolor{QuartoInternalColor2}{     cv=}\textcolor{QuartoInternalColor4}{3}\textcolor{QuartoInternalColor2}{,}
+\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{     28}\textcolor{QuartoInternalColor2}{     track\_errors=}\textcolor{QuartoInternalColor5}{True}\textcolor{QuartoInternalColor2}{,}
+\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{     29}\textcolor{QuartoInternalColor2}{     verbose=}\textcolor{QuartoInternalColor5}{True}\textcolor{QuartoInternalColor2}{,}
+\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{     30}\textcolor{QuartoInternalColor2}{     random\_state=}\textcolor{QuartoInternalColor4}{42}\textcolor{QuartoInternalColor2}{}
+\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{     31}\textcolor{QuartoInternalColor2}{ )}
+\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{     33}\textcolor{QuartoInternalColor2}{ }\textcolor{QuartoInternalColor7}{# Capture warnings}\textcolor{QuartoInternalColor2}{}
 \textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{     34}\textcolor{QuartoInternalColor2}{ }\textcolor{QuartoInternalColor5}{with}\textcolor{QuartoInternalColor2}{ warnings.catch\_warnings(record=}\textcolor{QuartoInternalColor5}{True}\textcolor{QuartoInternalColor2}{) }\textcolor{QuartoInternalColor5}{as}\textcolor{QuartoInternalColor2}{ w:}
-\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{     35}\textcolor{QuartoInternalColor2}{     warnings.simplefilter(}\textcolor{QuartoInternalColor8}{"}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor8}{always}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor8}{"}\textcolor{QuartoInternalColor2}{)}
-\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{---> }\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{36}\textcolor{QuartoInternalColor2}{     }\textcolor{QuartoInternalColor2}{sl}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor2}{.}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor2}{fit}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor2}{(}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor2}{X}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor2}{,}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor2}{ }\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor2}{y}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor2}{)}\textcolor{QuartoInternalColor2}{}
-\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{     38}\textcolor{QuartoInternalColor2}{     }\textcolor{QuartoInternalColor5}{print}\textcolor{QuartoInternalColor2}{(}\textcolor{QuartoInternalColor8}{"}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor9}{\textbackslash{}n}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor8}{Warnings captured:}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor8}{"}\textcolor{QuartoInternalColor2}{)}
-\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{     39}\textcolor{QuartoInternalColor2}{     }\textcolor{QuartoInternalColor5}{for}\textcolor{QuartoInternalColor2}{ warning }\textcolor{QuartoInternalColor10}{in}\textcolor{QuartoInternalColor2}{ w:}
-\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor3}{File }\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{/fh/fast/gilbert\_p/agartlan/gitrepo/mysuperlearner/mysuperlearner/super\_learner.py:218}\textcolor{QuartoInternalColor2}{, in }\textcolor{QuartoInternalColor3}{SuperLearner.fit}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor11}{(self, X, y, sample\_weight, store\_X, groups)}\textcolor{QuartoInternalColor2}{}
-\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{    193}\textcolor{QuartoInternalColor2}{ }\textcolor{QuartoInternalColor6}{}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor2}{"""Fit Super Learner ensemble.}\textcolor{QuartoInternalColor2}{}
-\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{    194}\textcolor{QuartoInternalColor2}{ }
-\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{    195}\textcolor{QuartoInternalColor2}{ }\textcolor{QuartoInternalColor2}{Parameters}\textcolor{QuartoInternalColor2}{}
-\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{   (...)}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{    215}\textcolor{QuartoInternalColor2}{ }\textcolor{QuartoInternalColor2}{    Fitted estimator.}\textcolor{QuartoInternalColor2}{}
-\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{    216}\textcolor{QuartoInternalColor2}{ }\textcolor{QuartoInternalColor2}{"""}\textcolor{QuartoInternalColor2}{}
-\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{    217}\textcolor{QuartoInternalColor2}{ }\textcolor{QuartoInternalColor5}{if}\textcolor{QuartoInternalColor2}{ }\textcolor{QuartoInternalColor5}{self}\textcolor{QuartoInternalColor2}{.learners }\textcolor{QuartoInternalColor10}{is}\textcolor{QuartoInternalColor2}{ }\textcolor{QuartoInternalColor5}{None}\textcolor{QuartoInternalColor2}{:}
-\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{--> }\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{218}\textcolor{QuartoInternalColor2}{     }\textcolor{QuartoInternalColor5}{raise}\textcolor{QuartoInternalColor2}{ }\textcolor{QuartoInternalColor12}{ValueError}\textcolor{QuartoInternalColor2}{(}
-\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{    219}\textcolor{QuartoInternalColor2}{         }\textcolor{QuartoInternalColor8}{"}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor8}{No learners provided. Either pass learners to the constructor }\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor8}{"}\textcolor{QuartoInternalColor2}{}
-\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{    220}\textcolor{QuartoInternalColor2}{         }\textcolor{QuartoInternalColor8}{"}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor8}{(SuperLearner(learners=[...])) or use fit\_explicit(X, y, base\_learners) }\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor8}{"}\textcolor{QuartoInternalColor2}{}
-\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{    221}\textcolor{QuartoInternalColor2}{         }\textcolor{QuartoInternalColor8}{"}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor8}{(deprecated).}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor8}{"}\textcolor{QuartoInternalColor2}{}
-\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{    222}\textcolor{QuartoInternalColor2}{     )}
-\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{    223}\textcolor{QuartoInternalColor2}{ base\_learners = }\textcolor{QuartoInternalColor5}{self}\textcolor{QuartoInternalColor2}{.learners}
-\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{    224}\textcolor{QuartoInternalColor2}{ }\textcolor{QuartoInternalColor7}{# Store feature names before validation converts to array}\textcolor{QuartoInternalColor2}{}
-\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor1}{ValueError}\textcolor{QuartoInternalColor2}{: No learners provided. Either pass learners to the constructor (SuperLearner(learners=[...])) or use fit\_explicit(X, y, base\_learners) (deprecated).}
+\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor1}{NameError}\textcolor{QuartoInternalColor2}{: name 'SuperLearner' is not defined}
 \end{Highlighting}
 
 \subsection{Key Observations}\label{key-observations}
@@ -725,30 +713,29 @@ SCENARIO 2: Imbalanced Data with Sample Weights
 Class distribution:
   Class 0: 180 (90.0%)
   Class 1: 20 (10.0%)
-
-----------------------------------------------------------------------
-DIAGNOSTICS:
-----------------------------------------------------------------------
-
-Total errors: 0
-Failed learners: set()
-
-CV AUC Scores:
-  intercept      : 0.4833
-  rf             : 0.7607
-  logistic       : 0.6717
-
-Meta-Learner Weights:
-  intercept      : 0.2383
-  rf             : 0.7617
-  logistic       : 0.0000
 \end{verbatim}
 
-\begin{verbatim}
-/tmp/ipykernel_4084750/3860650377.py:36: DeprecationWarning:
-
-fit_explicit() is deprecated and will be removed in v0.3.0. Use SuperLearner(learners=base_learners).fit(X, y) instead.
-\end{verbatim}
+\begin{Highlighting}
+\textcolor{black}{NameError: name 'InterceptOnlyEstimator' is not defined}
+\textcolor{black}{}\textcolor{QuartoInternalColor1}{---------------------------------------------------------------------------}\textcolor{QuartoInternalColor2}{}
+\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor1}{NameError}\textcolor{QuartoInternalColor2}{                                 Traceback (most recent call last)}
+\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor3}{Cell}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor3}{ }\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{In[3]}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{, line 24}\textcolor{QuartoInternalColor2}{}
+\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{     20}\textcolor{QuartoInternalColor2}{ sample\_weight = compute\_sample\_weight(}\textcolor{QuartoInternalColor8}{'}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor8}{balanced}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor8}{'}\textcolor{QuartoInternalColor2}{, y\_imb)}
+\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{     22}\textcolor{QuartoInternalColor2}{ }\textcolor{QuartoInternalColor7}{# Include baseline learner for comparison}\textcolor{QuartoInternalColor2}{}
+\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{     23}\textcolor{QuartoInternalColor2}{ learners\_imb = [}
+\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{---> }\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{24}\textcolor{QuartoInternalColor2}{     (}\textcolor{QuartoInternalColor8}{'}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor8}{intercept}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor8}{'}\textcolor{QuartoInternalColor2}{, }\textcolor{QuartoInternalColor2}{InterceptOnlyEstimator}\textcolor{QuartoInternalColor2}{()),}
+\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{     25}\textcolor{QuartoInternalColor2}{     (}\textcolor{QuartoInternalColor8}{'}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor8}{rf}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor8}{'}\textcolor{QuartoInternalColor2}{, RandomForestClassifier(n\_estimators=}\textcolor{QuartoInternalColor4}{20}\textcolor{QuartoInternalColor2}{, random\_state=}\textcolor{QuartoInternalColor4}{42}\textcolor{QuartoInternalColor2}{)),}
+\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{     26}\textcolor{QuartoInternalColor2}{     (}\textcolor{QuartoInternalColor8}{'}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor8}{logistic}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor8}{'}\textcolor{QuartoInternalColor2}{, LogisticRegression(class\_weight=}\textcolor{QuartoInternalColor8}{'}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor8}{balanced}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor8}{'}\textcolor{QuartoInternalColor2}{, max\_iter=}\textcolor{QuartoInternalColor4}{1000}\textcolor{QuartoInternalColor2}{, random\_state=}\textcolor{QuartoInternalColor4}{42}\textcolor{QuartoInternalColor2}{)),}
+\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{     27}\textcolor{QuartoInternalColor2}{ ]}
+\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{     29}\textcolor{QuartoInternalColor2}{ sl\_imb = SuperLearner(}
+\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{     30}\textcolor{QuartoInternalColor2}{     method=}\textcolor{QuartoInternalColor8}{'}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor8}{nnloglik}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor8}{'}\textcolor{QuartoInternalColor2}{,}
+\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{     31}\textcolor{QuartoInternalColor2}{     cv=}\textcolor{QuartoInternalColor4}{3}\textcolor{QuartoInternalColor2}{,}
+\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{     32}\textcolor{QuartoInternalColor2}{     track\_errors=}\textcolor{QuartoInternalColor5}{True}\textcolor{QuartoInternalColor2}{,}
+\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{     33}\textcolor{QuartoInternalColor2}{     random\_state=}\textcolor{QuartoInternalColor4}{42}\textcolor{QuartoInternalColor2}{}
+\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{     34}\textcolor{QuartoInternalColor2}{ )}
+\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{     36}\textcolor{QuartoInternalColor2}{ sl\_imb.fit\_explicit(X\_imb, y\_imb, learners\_imb, sample\_weight=sample\_weight)}
+\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor1}{NameError}\textcolor{QuartoInternalColor2}{: name 'InterceptOnlyEstimator' is not defined}
+\end{Highlighting}
 
 \subsection{Key Observations}\label{key-observations-1}
 
@@ -851,24 +838,26 @@ After imputation:
   Remaining NaN values: 0
 \end{verbatim}
 
-\begin{verbatim}
-/tmp/ipykernel_4084750/2796442553.py:39: DeprecationWarning:
-
-fit_explicit() is deprecated and will be removed in v0.3.0. Use SuperLearner(learners=base_learners).fit(X, y) instead.
-\end{verbatim}
-
-\begin{verbatim}
-
-----------------------------------------------------------------------
-DIAGNOSTICS:
-----------------------------------------------------------------------
-
-Total errors: 0
-Failed learners: set()
-
-Predictions shape: (200, 2)
-All predictions valid: True
-\end{verbatim}
+\begin{Highlighting}
+\textcolor{black}{NameError: name 'SuperLearner' is not defined}
+\textcolor{black}{}\textcolor{QuartoInternalColor1}{---------------------------------------------------------------------------}\textcolor{QuartoInternalColor2}{}
+\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor1}{NameError}\textcolor{QuartoInternalColor2}{                                 Traceback (most recent call last)}
+\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor3}{Cell}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor3}{ }\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{In[4]}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{, line 32}\textcolor{QuartoInternalColor2}{}
+\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{     26}\textcolor{QuartoInternalColor2}{ }\textcolor{QuartoInternalColor7}{# Fit with imputed data}\textcolor{QuartoInternalColor2}{}
+\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{     27}\textcolor{QuartoInternalColor2}{ learners\_miss = [}
+\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{     28}\textcolor{QuartoInternalColor2}{     (}\textcolor{QuartoInternalColor8}{'}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor8}{rf}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor8}{'}\textcolor{QuartoInternalColor2}{, RandomForestClassifier(n\_estimators=}\textcolor{QuartoInternalColor4}{20}\textcolor{QuartoInternalColor2}{, random\_state=}\textcolor{QuartoInternalColor4}{42}\textcolor{QuartoInternalColor2}{)),}
+\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{     29}\textcolor{QuartoInternalColor2}{     (}\textcolor{QuartoInternalColor8}{'}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor8}{logistic}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor8}{'}\textcolor{QuartoInternalColor2}{, LogisticRegression(max\_iter=}\textcolor{QuartoInternalColor4}{1000}\textcolor{QuartoInternalColor2}{, random\_state=}\textcolor{QuartoInternalColor4}{42}\textcolor{QuartoInternalColor2}{)),}
+\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{     30}\textcolor{QuartoInternalColor2}{ ]}
+\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{---> }\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{32}\textcolor{QuartoInternalColor2}{ sl\_miss = }\textcolor{QuartoInternalColor2}{SuperLearner}\textcolor{QuartoInternalColor2}{(}
+\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{     33}\textcolor{QuartoInternalColor2}{     method=}\textcolor{QuartoInternalColor8}{'}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor8}{nnloglik}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor8}{'}\textcolor{QuartoInternalColor2}{,}
+\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{     34}\textcolor{QuartoInternalColor2}{     cv=}\textcolor{QuartoInternalColor4}{3}\textcolor{QuartoInternalColor2}{,}
+\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{     35}\textcolor{QuartoInternalColor2}{     track\_errors=}\textcolor{QuartoInternalColor5}{True}\textcolor{QuartoInternalColor2}{,}
+\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{     36}\textcolor{QuartoInternalColor2}{     random\_state=}\textcolor{QuartoInternalColor4}{42}\textcolor{QuartoInternalColor2}{}
+\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{     37}\textcolor{QuartoInternalColor2}{ )}
+\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{     39}\textcolor{QuartoInternalColor2}{ sl\_miss.fit\_explicit(X\_miss\_imputed, y\_miss, learners\_miss)}
+\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{     41}\textcolor{QuartoInternalColor2}{ }\textcolor{QuartoInternalColor5}{print}\textcolor{QuartoInternalColor2}{(}\textcolor{QuartoInternalColor8}{"}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor9}{\textbackslash{}n}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor8}{"}\textcolor{QuartoInternalColor2}{ + }\textcolor{QuartoInternalColor8}{"}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor8}{-}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor8}{"}\textcolor{QuartoInternalColor2}{*}\textcolor{QuartoInternalColor4}{70}\textcolor{QuartoInternalColor2}{)}
+\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor1}{NameError}\textcolor{QuartoInternalColor2}{: name 'SuperLearner' is not defined}
+\end{Highlighting}
 
 \subsection{Key Observations}\label{key-observations-2}
 
@@ -956,42 +945,28 @@ Demonstrating convergence warnings when iteration limit is too low.
 ======================================================================
 SCENARIO 4: Convergence Issues with Low max_iter
 ======================================================================
-
-Fitting with max_iter=2 (will generate convergence warnings)...
-
-Warnings captured: 5
-
-  Warning 1:
-    Type: DeprecationWarning
-    Message: fit_explicit() is deprecated and will be removed in v0.3.0. Use SuperLearner(learners=base_learners)...
-
-  Warning 2:
-    Type: ConvergenceWarning
-    Message: lbfgs failed to converge (status=1):
-STOP: TOTAL NO. OF ITERATIONS REACHED LIMIT.
-
-Increase the numb...
-
-  Warning 3:
-    Type: ConvergenceWarning
-    Message: lbfgs failed to converge (status=1):
-STOP: TOTAL NO. OF ITERATIONS REACHED LIMIT.
-
-Increase the numb...
-
-----------------------------------------------------------------------
-DIAGNOSTICS:
-----------------------------------------------------------------------
-
-Total errors: 0
-Failed learners: set()
-
-Model still functional: True
-
-CV AUC Scores:
-  rf                  : 0.9061
-  logistic_low_iter   : 0.9103
 \end{verbatim}
+
+\begin{Highlighting}
+\textcolor{black}{NameError: name 'SuperLearner' is not defined}
+\textcolor{black}{}\textcolor{QuartoInternalColor1}{---------------------------------------------------------------------------}\textcolor{QuartoInternalColor2}{}
+\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor1}{NameError}\textcolor{QuartoInternalColor2}{                                 Traceback (most recent call last)}
+\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor3}{Cell}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor3}{ }\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{In[5]}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{, line 14}\textcolor{QuartoInternalColor2}{}
+\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{      8}\textcolor{QuartoInternalColor2}{ }\textcolor{QuartoInternalColor7}{# Use learner with low iteration limit (will not converge)}\textcolor{QuartoInternalColor2}{}
+\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{      9}\textcolor{QuartoInternalColor2}{ learners\_conv = [}
+\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{     10}\textcolor{QuartoInternalColor2}{     (}\textcolor{QuartoInternalColor8}{'}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor8}{rf}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor8}{'}\textcolor{QuartoInternalColor2}{, RandomForestClassifier(n\_estimators=}\textcolor{QuartoInternalColor4}{20}\textcolor{QuartoInternalColor2}{, random\_state=}\textcolor{QuartoInternalColor4}{42}\textcolor{QuartoInternalColor2}{)),}
+\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{     11}\textcolor{QuartoInternalColor2}{     (}\textcolor{QuartoInternalColor8}{'}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor8}{logistic\_low\_iter}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor8}{'}\textcolor{QuartoInternalColor2}{, LogisticRegression(max\_iter=}\textcolor{QuartoInternalColor4}{2}\textcolor{QuartoInternalColor2}{, random\_state=}\textcolor{QuartoInternalColor4}{42}\textcolor{QuartoInternalColor2}{)),  }\textcolor{QuartoInternalColor7}{# Too low!}\textcolor{QuartoInternalColor2}{}
+\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{     12}\textcolor{QuartoInternalColor2}{ ]}
+\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{---> }\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{14}\textcolor{QuartoInternalColor2}{ sl\_conv = }\textcolor{QuartoInternalColor2}{SuperLearner}\textcolor{QuartoInternalColor2}{(}
+\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{     15}\textcolor{QuartoInternalColor2}{     method=}\textcolor{QuartoInternalColor8}{'}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor8}{nnloglik}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor8}{'}\textcolor{QuartoInternalColor2}{,}
+\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{     16}\textcolor{QuartoInternalColor2}{     cv=}\textcolor{QuartoInternalColor4}{3}\textcolor{QuartoInternalColor2}{,}
+\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{     17}\textcolor{QuartoInternalColor2}{     track\_errors=}\textcolor{QuartoInternalColor5}{True}\textcolor{QuartoInternalColor2}{,}
+\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{     18}\textcolor{QuartoInternalColor2}{     random\_state=}\textcolor{QuartoInternalColor4}{42}\textcolor{QuartoInternalColor2}{}
+\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{     19}\textcolor{QuartoInternalColor2}{ )}
+\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{     21}\textcolor{QuartoInternalColor2}{ }\textcolor{QuartoInternalColor7}{# Capture warnings}\textcolor{QuartoInternalColor2}{}
+\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{     22}\textcolor{QuartoInternalColor2}{ }\textcolor{QuartoInternalColor5}{print}\textcolor{QuartoInternalColor2}{(}\textcolor{QuartoInternalColor8}{"}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor9}{\textbackslash{}n}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor8}{Fitting with max\_iter=2 (will generate convergence warnings)...}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor8}{"}\textcolor{QuartoInternalColor2}{)}
+\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor1}{NameError}\textcolor{QuartoInternalColor2}{: name 'SuperLearner' is not defined}
+\end{Highlighting}
 
 \subsection{Key Observations}\label{key-observations-3}
 
@@ -1101,20 +1076,29 @@ SCENARIO 5: Min Viable Learners Enforcement
 
 Test 5a: Only 1 learner succeeds, but min_viable_learners=2
 ----------------------------------------------------------------------
-✓ Correctly raised RuntimeError:
-  Only 1/2 learners succeeded in final refit. Minimum required: 2. Failed learners: {'failing'}
-
-
-Test 5b: 2 learners succeed, min_viable_learners=2
-----------------------------------------------------------------------
-✓ Fit succeeded with warning:
-  DeprecationWarning: fit_explicit() is deprecated and will be removed in v0.3.0. Use SuperLearner(learners=base_learners).fit(X, y) instead.
-  UserWarning: Warning: 1 learner(s) failed in final refit: {'failing'}. Ensemble will use 2 learners.
-
-Failed learners: {'failing'}
-Working learners: 2
-Can make predictions: True
 \end{verbatim}
+
+\begin{Highlighting}
+\textcolor{black}{NameError: name 'SuperLearner' is not defined}
+\textcolor{black}{}\textcolor{QuartoInternalColor1}{---------------------------------------------------------------------------}\textcolor{QuartoInternalColor2}{}
+\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor1}{NameError}\textcolor{QuartoInternalColor2}{                                 Traceback (most recent call last)}
+\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor3}{Cell}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor3}{ }\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{In[6]}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{, line 21}\textcolor{QuartoInternalColor2}{}
+\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{     14}\textcolor{QuartoInternalColor2}{ }\textcolor{QuartoInternalColor5}{print}\textcolor{QuartoInternalColor2}{(}\textcolor{QuartoInternalColor8}{"}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor8}{-}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor8}{"}\textcolor{QuartoInternalColor2}{ * }\textcolor{QuartoInternalColor4}{70}\textcolor{QuartoInternalColor2}{)}
+\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{     16}\textcolor{QuartoInternalColor2}{ learners\_5a = [}
+\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{     17}\textcolor{QuartoInternalColor2}{     (}\textcolor{QuartoInternalColor8}{'}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor8}{rf}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor8}{'}\textcolor{QuartoInternalColor2}{, RandomForestClassifier(n\_estimators=}\textcolor{QuartoInternalColor4}{10}\textcolor{QuartoInternalColor2}{, random\_state=}\textcolor{QuartoInternalColor4}{42}\textcolor{QuartoInternalColor2}{)),}
+\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{     18}\textcolor{QuartoInternalColor2}{     (}\textcolor{QuartoInternalColor8}{'}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor8}{failing}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor8}{'}\textcolor{QuartoInternalColor2}{, FailingLearner()),}
+\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{     19}\textcolor{QuartoInternalColor2}{ ]}
+\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{---> }\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{21}\textcolor{QuartoInternalColor2}{ sl\_5a = }\textcolor{QuartoInternalColor2}{SuperLearner}\textcolor{QuartoInternalColor2}{(}
+\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{     22}\textcolor{QuartoInternalColor2}{     method=}\textcolor{QuartoInternalColor8}{'}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor8}{nnloglik}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor8}{'}\textcolor{QuartoInternalColor2}{,}
+\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{     23}\textcolor{QuartoInternalColor2}{     cv=}\textcolor{QuartoInternalColor4}{3}\textcolor{QuartoInternalColor2}{,}
+\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{     24}\textcolor{QuartoInternalColor2}{     track\_errors=}\textcolor{QuartoInternalColor5}{True}\textcolor{QuartoInternalColor2}{,}
+\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{     25}\textcolor{QuartoInternalColor2}{     random\_state=}\textcolor{QuartoInternalColor4}{42}\textcolor{QuartoInternalColor2}{,}
+\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{     26}\textcolor{QuartoInternalColor2}{     min\_viable\_learners=}\textcolor{QuartoInternalColor4}{2}\textcolor{QuartoInternalColor2}{  }\textcolor{QuartoInternalColor7}{# Require 2, but only 1 will succeed}\textcolor{QuartoInternalColor2}{}
+\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{     27}\textcolor{QuartoInternalColor2}{ )}
+\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{     29}\textcolor{QuartoInternalColor2}{ }\textcolor{QuartoInternalColor5}{try}\textcolor{QuartoInternalColor2}{:}
+\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{     30}\textcolor{QuartoInternalColor2}{     }\textcolor{QuartoInternalColor5}{with}\textcolor{QuartoInternalColor2}{ warnings.catch\_warnings(record=}\textcolor{QuartoInternalColor5}{True}\textcolor{QuartoInternalColor2}{) }\textcolor{QuartoInternalColor5}{as}\textcolor{QuartoInternalColor2}{ w:}
+\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor1}{NameError}\textcolor{QuartoInternalColor2}{: name 'SuperLearner' is not defined}
+\end{Highlighting}
 
 \subsection{Key Observations}\label{key-observations-4}
 
@@ -1202,27 +1186,28 @@ evaluation.
 ======================================================================
 SCENARIO 6: External Cross-Validation
 ======================================================================
-
-Running external 5-fold CV...
 \end{verbatim}
 
 \begin{Highlighting}
-\textcolor{black}{NameError: name 'evaluate\_super\_learner\_cv' is not defined}
+\textcolor{black}{NameError: name 'InterceptOnlyEstimator' is not defined}
 \textcolor{black}{}\textcolor{QuartoInternalColor1}{---------------------------------------------------------------------------}\textcolor{QuartoInternalColor2}{}
 \textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor1}{NameError}\textcolor{QuartoInternalColor2}{                                 Traceback (most recent call last)}
-\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor3}{Cell}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor3}{ }\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{In[7]}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{, line 21}\textcolor{QuartoInternalColor2}{}
+\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor3}{Cell}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor3}{ }\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{In[7]}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{, line 13}\textcolor{QuartoInternalColor2}{}
+\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{      3}\textcolor{QuartoInternalColor2}{ }\textcolor{QuartoInternalColor5}{print}\textcolor{QuartoInternalColor2}{(}\textcolor{QuartoInternalColor8}{"}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor8}{=}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor8}{"}\textcolor{QuartoInternalColor2}{*}\textcolor{QuartoInternalColor4}{70}\textcolor{QuartoInternalColor2}{)}
+\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{      5}\textcolor{QuartoInternalColor2}{ X\_cv, y\_cv = make\_classification(}
+\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{      6}\textcolor{QuartoInternalColor2}{     n\_samples=}\textcolor{QuartoInternalColor4}{300}\textcolor{QuartoInternalColor2}{,}
+\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{      7}\textcolor{QuartoInternalColor2}{     n\_features=}\textcolor{QuartoInternalColor4}{10}\textcolor{QuartoInternalColor2}{,}
+\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{      8}\textcolor{QuartoInternalColor2}{     n\_informative=}\textcolor{QuartoInternalColor4}{5}\textcolor{QuartoInternalColor2}{,}
+\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{      9}\textcolor{QuartoInternalColor2}{     random\_state=}\textcolor{QuartoInternalColor4}{42}\textcolor{QuartoInternalColor2}{}
+\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{     10}\textcolor{QuartoInternalColor2}{ )}
+\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{     12}\textcolor{QuartoInternalColor2}{ learners\_cv = [}
+\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{---> }\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{13}\textcolor{QuartoInternalColor2}{     (}\textcolor{QuartoInternalColor8}{'}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor8}{intercept}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor8}{'}\textcolor{QuartoInternalColor2}{, }\textcolor{QuartoInternalColor2}{InterceptOnlyEstimator}\textcolor{QuartoInternalColor2}{()),}
+\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{     14}\textcolor{QuartoInternalColor2}{     (}\textcolor{QuartoInternalColor8}{'}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor8}{rf}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor8}{'}\textcolor{QuartoInternalColor2}{, RandomForestClassifier(n\_estimators=}\textcolor{QuartoInternalColor4}{30}\textcolor{QuartoInternalColor2}{, random\_state=}\textcolor{QuartoInternalColor4}{42}\textcolor{QuartoInternalColor2}{)),}
+\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{     15}\textcolor{QuartoInternalColor2}{     (}\textcolor{QuartoInternalColor8}{'}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor8}{logistic}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor8}{'}\textcolor{QuartoInternalColor2}{, LogisticRegression(max\_iter=}\textcolor{QuartoInternalColor4}{1000}\textcolor{QuartoInternalColor2}{, random\_state=}\textcolor{QuartoInternalColor4}{42}\textcolor{QuartoInternalColor2}{)),}
+\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{     16}\textcolor{QuartoInternalColor2}{ ]}
 \textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{     18}\textcolor{QuartoInternalColor2}{ sl\_cv = SuperLearner(learners=learners, method=}\textcolor{QuartoInternalColor8}{'}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor8}{nnloglik}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor8}{'}\textcolor{QuartoInternalColor2}{, cv=}\textcolor{QuartoInternalColor4}{3}\textcolor{QuartoInternalColor2}{, random\_state=}\textcolor{QuartoInternalColor4}{42}\textcolor{QuartoInternalColor2}{)}
 \textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{     20}\textcolor{QuartoInternalColor2}{ }\textcolor{QuartoInternalColor5}{print}\textcolor{QuartoInternalColor2}{(}\textcolor{QuartoInternalColor8}{"}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor9}{\textbackslash{}n}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor8}{Running external 5-fold CV...}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor8}{"}\textcolor{QuartoInternalColor2}{)}
-\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{---> }\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{21}\textcolor{QuartoInternalColor2}{ results\_cv = }\textcolor{QuartoInternalColor2}{evaluate\_super\_learner\_cv}\textcolor{QuartoInternalColor2}{(}
-\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{     22}\textcolor{QuartoInternalColor2}{     X\_cv, y\_cv,}
-\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{     23}\textcolor{QuartoInternalColor2}{     learners\_cv,}
-\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{     24}\textcolor{QuartoInternalColor2}{     sl\_cv,}
-\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{     25}\textcolor{QuartoInternalColor2}{     outer\_cv=}\textcolor{QuartoInternalColor4}{5}\textcolor{QuartoInternalColor2}{,}
-\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{     26}\textcolor{QuartoInternalColor2}{     random\_state=}\textcolor{QuartoInternalColor4}{42}\textcolor{QuartoInternalColor2}{}
-\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{     27}\textcolor{QuartoInternalColor2}{ )}
-\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{     29}\textcolor{QuartoInternalColor2}{ }\textcolor{QuartoInternalColor5}{print}\textcolor{QuartoInternalColor2}{(}\textcolor{QuartoInternalColor8}{f}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor8}{"}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor9}{\textbackslash{}n}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor8}{Results shape: }\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor13}{\{}\textcolor{QuartoInternalColor2}{results\_cv.shape}\textcolor{QuartoInternalColor13}{\}}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor8}{"}\textcolor{QuartoInternalColor2}{)}
-\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{     30}\textcolor{QuartoInternalColor2}{ }\textcolor{QuartoInternalColor5}{print}\textcolor{QuartoInternalColor2}{(}\textcolor{QuartoInternalColor8}{f}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor8}{"}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor8}{Columns: }\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor13}{\{}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor5}{list}\textcolor{QuartoInternalColor2}{(results\_cv.columns)}\textcolor{QuartoInternalColor13}{\}}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor8}{"}\textcolor{QuartoInternalColor2}{)}
-\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor1}{NameError}\textcolor{QuartoInternalColor2}{: name 'evaluate\_super\_learner\_cv' is not defined}
+\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor1}{NameError}\textcolor{QuartoInternalColor2}{: name 'InterceptOnlyEstimator' is not defined}
 \end{Highlighting}
 
 \subsection{Key Observations}\label{key-observations-5}
@@ -1327,41 +1312,29 @@ Demonstrating prediction error tracking when \texttt{verbose=True}.
 ======================================================================
 SCENARIO 7: Prediction Error Tracking
 ======================================================================
-
-Fitting...
-[ERROR] pred_failing (fold None): Prediction always fails
-[ERROR] pred_failing (fold None): Prediction always fails
-[ERROR] pred_failing (fold None): Prediction always fails
-
-Fit completed. Failed learners: set()
-
-Making predictions (this will trigger prediction error)...
-[WARNING] pred_failing (fold None): Prediction failed: Prediction always fails
-
-Warnings during prediction:
-  UserWarning: Prediction failed for 1 learner(s): ['pred_failing']. Using neutral probability (0.5).
-
-----------------------------------------------------------------------
-DIAGNOSTICS:
-----------------------------------------------------------------------
-
-Total errors: 4
-Prediction errors: 1
-
-  Learner: pred_failing
-  Error type: prediction
-  Severity: warning
-  Message: Prediction failed: Prediction always fails
-
-Predictions still valid: True
-Failed learner uses neutral probability (0.5)
 \end{verbatim}
 
-\begin{verbatim}
-/tmp/ipykernel_4084750/2301653980.py:32: DeprecationWarning:
-
-fit_explicit() is deprecated and will be removed in v0.3.0. Use SuperLearner(learners=base_learners).fit(X, y) instead.
-\end{verbatim}
+\begin{Highlighting}
+\textcolor{black}{NameError: name 'SuperLearner' is not defined}
+\textcolor{black}{}\textcolor{QuartoInternalColor1}{---------------------------------------------------------------------------}\textcolor{QuartoInternalColor2}{}
+\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor1}{NameError}\textcolor{QuartoInternalColor2}{                                 Traceback (most recent call last)}
+\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor3}{Cell}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor3}{ }\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{In[8]}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{, line 22}\textcolor{QuartoInternalColor2}{}
+\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{     16}\textcolor{QuartoInternalColor2}{ learners\_pred = [}
+\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{     17}\textcolor{QuartoInternalColor2}{     (}\textcolor{QuartoInternalColor8}{'}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor8}{rf}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor8}{'}\textcolor{QuartoInternalColor2}{, RandomForestClassifier(n\_estimators=}\textcolor{QuartoInternalColor4}{10}\textcolor{QuartoInternalColor2}{, random\_state=}\textcolor{QuartoInternalColor4}{42}\textcolor{QuartoInternalColor2}{)),}
+\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{     18}\textcolor{QuartoInternalColor2}{     (}\textcolor{QuartoInternalColor8}{'}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor8}{pred\_failing}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor8}{'}\textcolor{QuartoInternalColor2}{, PredictionFailingLearner()),}
+\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{     19}\textcolor{QuartoInternalColor2}{ ]}
+\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{     21}\textcolor{QuartoInternalColor2}{ }\textcolor{QuartoInternalColor7}{# Note: PredictionFailingLearner succeeds in fit but fails in prediction}\textcolor{QuartoInternalColor2}{}
+\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{---> }\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{22}\textcolor{QuartoInternalColor2}{ sl\_pred = }\textcolor{QuartoInternalColor2}{SuperLearner}\textcolor{QuartoInternalColor2}{(}
+\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{     23}\textcolor{QuartoInternalColor2}{     method=}\textcolor{QuartoInternalColor8}{'}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor8}{nnloglik}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor8}{'}\textcolor{QuartoInternalColor2}{,}
+\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{     24}\textcolor{QuartoInternalColor2}{     cv=}\textcolor{QuartoInternalColor4}{3}\textcolor{QuartoInternalColor2}{,}
+\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{     25}\textcolor{QuartoInternalColor2}{     track\_errors=}\textcolor{QuartoInternalColor5}{True}\textcolor{QuartoInternalColor2}{,}
+\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{     26}\textcolor{QuartoInternalColor2}{     verbose=}\textcolor{QuartoInternalColor5}{True}\textcolor{QuartoInternalColor2}{,  }\textcolor{QuartoInternalColor7}{# Enable verbose to see prediction warnings}\textcolor{QuartoInternalColor2}{}
+\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{     27}\textcolor{QuartoInternalColor2}{     random\_state=}\textcolor{QuartoInternalColor4}{42}\textcolor{QuartoInternalColor2}{}
+\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{     28}\textcolor{QuartoInternalColor2}{ )}
+\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{     30}\textcolor{QuartoInternalColor2}{ }\textcolor{QuartoInternalColor7}{# Fit succeeds (PredictionFailingLearner has simple fit)}\textcolor{QuartoInternalColor2}{}
+\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor4}{     31}\textcolor{QuartoInternalColor2}{ }\textcolor{QuartoInternalColor5}{print}\textcolor{QuartoInternalColor2}{(}\textcolor{QuartoInternalColor8}{"}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor9}{\textbackslash{}n}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor8}{Fitting...}\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor8}{"}\textcolor{QuartoInternalColor2}{)}
+\textcolor{QuartoInternalColor2}{}\textcolor{QuartoInternalColor1}{NameError}\textcolor{QuartoInternalColor2}{: name 'SuperLearner' is not defined}
+\end{Highlighting}
 
 \subsection{Key Observations}\label{key-observations-6}
 

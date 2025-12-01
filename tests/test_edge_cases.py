@@ -582,8 +582,8 @@ class TestExternalCVEdgeCases:
             outer_folds=3, random_state=42
         )
 
-        # Check results DataFrame
-        assert results.shape[0] == 3 * (1 + len(base_learners_with_intercept))
+        # Check results DataFrame (1 SuperLearner + 1 DiscreteSL + K base learners)
+        assert results.shape[0] == 3 * (1 + 1 + len(base_learners_with_intercept))
         assert 'auc' in results.columns
         assert 'logloss' in results.columns
 
@@ -631,7 +631,8 @@ class TestExternalCVEdgeCases:
             sample_weight=sample_weight
         )
 
-        assert results.shape[0] == 3 * (1 + len(base_learners_standard))
+        # 1 SuperLearner + 1 DiscreteSL + K base learners
+        assert results.shape[0] == 3 * (1 + 1 + len(base_learners_standard))
 
     @pytest.mark.parametrize('method', ['nnloglik', 'auc', 'nnls', 'logistic'])
     def test_cv_all_methods(self, simple_classification_data,
@@ -645,7 +646,8 @@ class TestExternalCVEdgeCases:
             outer_folds=3, random_state=42
         )
 
-        assert results.shape[0] == 3 * (1 + len(base_learners_standard))
+        # 1 SuperLearner + 1 DiscreteSL + K base learners
+        assert results.shape[0] == 3 * (1 + 1 + len(base_learners_standard))
         # All AUC values should be between 0 and 1
         assert np.all((results['auc'] >= 0) & (results['auc'] <= 1))
 

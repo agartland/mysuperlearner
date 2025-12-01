@@ -93,6 +93,7 @@ results_perm = compute_variable_importance(
     n_repeats=5,  # Repeat permutations for variance estimation
     metric='auc',
     random_state=42,
+    n_jobs=1,  # Use n_jobs > 1 for parallel computation (e.g., n_jobs=-1 for all CPUs)
     verbose=True
 )
 
@@ -111,6 +112,7 @@ results_drop = compute_variable_importance(
     sl,
     method='drop_column',
     metric='auc',
+    n_jobs=1,  # Set to -1 to use all available CPUs
     verbose=True
 )
 
@@ -132,6 +134,7 @@ results_grouped = compute_variable_importance(
     n_repeats=5,
     metric='auc',
     random_state=42,
+    n_jobs=1,  # Parallelize across groups
     verbose=True
 )
 

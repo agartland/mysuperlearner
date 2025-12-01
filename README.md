@@ -315,6 +315,72 @@ screener = LassoScreener(classification=True, name='lasso_selected')
 screened_lr = Pipeline([('screen', screener), ('lr', LogisticRegression())])
 ```
 
+### Parallel Variable Importance
+
+Variable importance computation supports parallel execution to significantly speed up computation for datasets with many features. The `n_jobs` parameter controls parallelization across features (for permutation and drop-column methods) or feature groups (for grouped method).
+
+**Quick Example:**
+```python
+from mysuperlearner.variable_importance import compute_variable_importance
+
+# Fit SuperLearner with store_X=True
+sl = SuperLearner(method='nnloglik', folds=5, random_state=42, store_X=True)
+sl.fit_explicit(X, y, learners)
+
+# Compute permutation importance in parallel
+results = compute_variable_importance(
+    sl,
+    method='permutation',
+    n_repeats=10,
+    random_state=42,
+    n_jobs=-1  # Use all available CPUs
+)
+
+# View top features
+print(results.summary(top_n=10))
+```
+
+**Supported Methods:**
+- **Permutation importance**: Parallelizes across features (each feature computed independently)
+- **Drop-column importance**: Parallelizes across features (each feature removed and refitted independently)
+- **Grouped importance**: Parallelizes across feature groups (each group computed independently)
+- **SHAP importance**: Not parallelized via `n_jobs` (use SHAP library's built-in parallelization)
+
+**Performance Guidelines:**
+
+| Dataset Size | Recommended n_jobs | Expected Speedup |
+|--------------|-------------------|------------------|
+| Small (<10 features) | 1-2 | 1-2x |
+| Medium (10-50 features) | 4-8 | 5-10x |
+| Large (50+ features) | -1 (all CPUs) | 10-25x |
+
+**Key Features:**
+- **Reproducible**: Same `random_state` produces identical results regardless of `n_jobs`
+- **Memory efficient**: Suitable for small-to-medium datasets (each worker copies data)
+- **Progress tracking**: Use `verbose=True` to see progress bars in parallel mode
+- **Automatic fallback**: `n_jobs=1` uses sequential execution (original behavior)
+
+**Example with timing:**
+```python
+import time
+
+# Sequential execution
+start = time.time()
+results_seq = compute_variable_importance(sl, method='permutation', n_repeats=5, n_jobs=1)
+time_seq = time.time() - start
+
+# Parallel execution
+start = time.time()
+results_par = compute_variable_importance(sl, method='permutation', n_repeats=5, n_jobs=-1)
+time_par = time.time() - start
+
+print(f"Sequential: {time_seq:.1f}s")
+print(f"Parallel: {time_par:.1f}s")
+print(f"Speedup: {time_seq/time_par:.1f}x")
+```
+
+For detailed examples, see `docs/examples/parallel_variable_importance_example.py`.
+
 ### Error Handling
 
 The package includes comprehensive error tracking via the `ErrorTracker` class:

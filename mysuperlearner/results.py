@@ -108,6 +108,14 @@ class SuperLearnerCVResults:
         """
         Compare SuperLearner to best individual base learner.
 
+        For each metric, compares SuperLearner performance to the best-performing base learner.
+        'Best' is defined appropriately for each metric type:
+        - For loss metrics (logloss, MSE, etc.): lowest value is best
+        - For score metrics (AUC, accuracy, etc.): highest value is best
+
+        Improvement is calculated so that positive values always indicate SuperLearner
+        is better than the best base learner, regardless of metric type.
+
         Returns
         -------
         comparison : pd.DataFrame
@@ -116,9 +124,12 @@ class SuperLearnerCVResults:
             - SuperLearner: SuperLearner mean performance
             - Best_Base: best base learner mean performance
             - Best_Base_Name: name of best base learner
-            - Improvement: absolute improvement
-            - Improvement_Pct: percentage improvement
+            - Improvement: absolute improvement (positive = SL better)
+            - Improvement_Pct: percentage improvement (positive = SL better)
         """
+        # Define metrics where lower is better
+        LOWER_IS_BETTER = {'logloss', 'log_loss', 'mse', 'mae', 'rmse', 'cv_risk', 'brier'}
+
         sl_metrics = self.metrics[self.metrics['learner'] == 'SuperLearner']
         base_metrics = self.metrics[self.metrics['learner_type'] == 'base']
 
@@ -128,16 +139,33 @@ class SuperLearnerCVResults:
                 continue
 
             sl_mean = sl_metrics[metric].mean()
-            best_base_mean = base_metrics.groupby('learner')[metric].mean().max()
-            best_name = base_metrics.groupby('learner')[metric].mean().idxmax()
+
+            # Normalize metric name for comparison (lowercase, no underscores/spaces)
+            metric_normalized = metric.lower().replace('_', '').replace(' ', '')
+
+            # Determine if this is a loss metric (lower is better)
+            is_loss_metric = any(loss_name in metric_normalized for loss_name in LOWER_IS_BETTER)
+
+            if is_loss_metric:
+                # Lower is better - find minimum
+                best_base_mean = base_metrics.groupby('learner')[metric].mean().min()
+                best_name = base_metrics.groupby('learner')[metric].mean().idxmin()
+                # For loss metrics: improvement = best_base - sl (positive when SL is lower/better)
+                improvement = best_base_mean - sl_mean
+            else:
+                # Higher is better - find maximum
+                best_base_mean = base_metrics.groupby('learner')[metric].mean().max()
+                best_name = base_metrics.groupby('learner')[metric].mean().idxmax()
+                # For score metrics: improvement = sl - best_base (positive when SL is higher/better)
+                improvement = sl_mean - best_base_mean
 
             comparison.append({
                 'metric': metric,
                 'SuperLearner': sl_mean,
                 'Best_Base': best_base_mean,
                 'Best_Base_Name': best_name,
-                'Improvement': sl_mean - best_base_mean,
-                'Improvement_Pct': ((sl_mean - best_base_mean) / best_base_mean * 100)
+                'Improvement': improvement,
+                'Improvement_Pct': (improvement / abs(best_base_mean) * 100)
                                   if best_base_mean != 0 else np.nan
             })
 
