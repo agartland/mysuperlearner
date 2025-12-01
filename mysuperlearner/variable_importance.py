@@ -586,7 +586,7 @@ def _refit_with_modified_data(
     fold_scores : list of float
         Per-fold scores
     """
-    from .extended_super_learner import ExtendedSuperLearner
+    from .super_learner import SuperLearner
 
     X_arr = X_modified.values if isinstance(X_modified, pd.DataFrame) else X_modified
     fold_scores = []

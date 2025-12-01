@@ -3,8 +3,8 @@ from sklearn.datasets import make_classification
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
 
-from mysuperlearner.evaluation import evaluate_super_learner_cv
-from mysuperlearner.extended_super_learner import ExtendedSuperLearner
+from mysuperlearner.cv_super_learner import evaluate_super_learner_cv
+from mysuperlearner import SuperLearner
 
 
 def test_evaluate_super_learner_cv_basic():
@@ -13,7 +13,7 @@ def test_evaluate_super_learner_cv_basic():
         ("rf", RandomForestClassifier(n_estimators=10, random_state=1)),
         ("log", LogisticRegression(max_iter=200))
     ]
-    sl = ExtendedSuperLearner(method='nnloglik', folds=3, random_state=1)
+    sl = SuperLearner(learners=base_learners, method='nnloglik', cv=3, random_state=1)
     df = evaluate_super_learner_cv(X, y, base_learners, sl, outer_folds=3, random_state=1)
     # expect rows = outer_folds * (1 super + K base)
     assert df.shape[0] == 3 * (1 + len(base_learners))

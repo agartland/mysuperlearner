@@ -23,7 +23,7 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.tree import DecisionTreeClassifier
 
-from mysuperlearner import ExtendedSuperLearner, compute_variable_importance
+from mysuperlearner import SuperLearner, compute_variable_importance
 
 # Set random seed for reproducibility
 np.random.seed(42)
@@ -79,13 +79,14 @@ learners = [
 
 # Fit SuperLearner
 # IMPORTANT: Set store_X=True to enable variable importance
-sl = ExtendedSuperLearner(
+sl = SuperLearner(
+    learners=learners,
     method='nnloglik',
-    folds=5,
+    cv=5,
     random_state=42
 )
 
-sl.fit_explicit(X, y, learners, store_X=True)
+sl.fit(X, y, store_X=True)
 
 print("SuperLearner fitted successfully!")
 print(f"\nMeta-learner weights:")
@@ -270,8 +271,8 @@ compute_variable_importance(
 
 ```{python}
 # Fit without store_X to save memory
-sl_memory_efficient = ExtendedSuperLearner(method='nnloglik', folds=5)
-sl_memory_efficient.fit_explicit(X, y, learners, store_X=False)
+sl_memory_efficient = SuperLearner(learners=learners, method='nnloglik', cv=5)
+sl_memory_efficient.fit(X, y, store_X=False)
 
 # Provide X explicitly for importance
 results_explicit = compute_variable_importance(
@@ -336,8 +337,8 @@ print(results_custom.summary(top_n=5))
 ```{python}
 # Example: Complete workflow
 # 1. Fit SuperLearner
-sl_workflow = ExtendedSuperLearner(method='nnloglik', folds=5)
-sl_workflow.fit_explicit(X, y, learners, store_X=True)
+sl_workflow = SuperLearner(learners=learners, method='nnloglik', cv=5)
+sl_workflow.fit(X, y, store_X=True)
 
 print("SuperLearner fitted successfully!")
 

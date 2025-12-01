@@ -14,7 +14,7 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.tree import DecisionTreeClassifier
 
-from mysuperlearner import ExtendedSuperLearner, compute_variable_importance
+from mysuperlearner import SuperLearner, compute_variable_importance
 
 # Set random seed for reproducibility
 np.random.seed(42)
@@ -66,14 +66,15 @@ print(f"\nBase learners: {[name for name, _ in learners]}")
 # ============================================================================
 
 print("\nFitting SuperLearner...")
-sl = ExtendedSuperLearner(
+sl = SuperLearner(
+    learners=learners,
     method='nnloglik',
-    folds=5,
+    cv=5,
     random_state=42
 )
 
 # IMPORTANT: Set store_X=True to enable variable importance
-sl.fit_explicit(X, y, learners, store_X=True)
+sl.fit(X, y, store_X=True)
 
 print("SuperLearner fitted successfully!")
 print(f"Meta-learner weights: {sl.meta_weights_}")

@@ -8,8 +8,7 @@ This script demonstrates:
 4. Using visualization functions and result objects
 """
 
-from mysuperlearner import ExtendedSuperLearner, visualization
-from mysuperlearner.evaluation import evaluate_super_learner_cv
+from mysuperlearner import SuperLearner, CVSuperLearner, visualization
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.svm import SVC
@@ -40,8 +39,8 @@ learners = [
 
 # Example 1: Basic SuperLearner with NNLogLik meta-learner
 print("\n2. Training SuperLearner with NNLogLik meta-learner...")
-sl = ExtendedSuperLearner(method='nnloglik', folds=5, random_state=42, verbose=False)
-sl.fit_explicit(X_train, y_train, learners)
+sl = SuperLearner(learners=learners, method='nnloglik', cv=5, random_state=42, verbose=False)
+sl.fit(X_train, y_train)
 
 # Make predictions
 y_pred_proba = sl.predict_proba(X_test)[:, 1]
@@ -76,8 +75,8 @@ methods = ['nnloglik', 'auc', 'nnls', 'logistic']
 results = {}
 
 for method in methods:
-    sl = ExtendedSuperLearner(method=method, folds=5, random_state=42, verbose=False)
-    sl.fit_explicit(X_train, y_train, learners)
+    sl = SuperLearner(learners=learners, method=method, cv=5, random_state=42, verbose=False)
+    sl.fit(X_train, y_train)
 
     y_pred_proba = sl.predict_proba(X_test)[:, 1]
     auc_score = roc_auc_score(y_test, y_pred_proba)
@@ -87,20 +86,9 @@ for method in methods:
 
 # Example 3: External cross-validation with result object
 print("\n4. Running external cross-validation (like R's CV.SuperLearner)...")
-sl = ExtendedSuperLearner(method='nnloglik', folds=5, random_state=42, verbose=False)
-
-# Use return_object=True and return_predictions=True for full functionality
-cv_results = evaluate_super_learner_cv(
-    X=X,
-    y=y,
-    base_learners=learners,
-    super_learner=sl,
-    outer_folds=5,
-    random_state=42,
-    n_jobs=1,
-    return_predictions=True,
-    return_object=True
-)
+cv_sl = CVSuperLearner(learners=learners, method='nnloglik', cv=5, inner_cv=5, random_state=42, verbose=False, n_jobs=1)
+cv_sl.fit(X, y)
+cv_results = cv_sl.get_results()
 
 print(f"\nCV Results object: {cv_results}")
 print(f"   - {cv_results.metrics.shape[0]} total evaluations")

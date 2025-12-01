@@ -21,71 +21,103 @@ from sklearn.metrics import accuracy_score, roc_auc_score, mean_squared_error
 from .meta_learners import NNLogLikEstimator, AUCEstimator, MeanEstimator
 from .error_handling import ErrorTracker, safe_fit, safe_predict, ErrorType
 
-class ExtendedSuperLearner(BaseEstimator, ClassifierMixin):
+class SuperLearner(BaseEstimator, ClassifierMixin):
     """
-    Extended SuperLearner that replicates R SuperLearner functionality.
-    
+    Super Learner ensemble method for binary classification.
+
+    Replicates R SuperLearner functionality with sklearn-compatible API.
+
     Features:
-    - Custom binary classification meta-learners (NNLogLik, AUC)
+    - Custom binary classification meta-learners (NNLogLik, AUC, NNLS)
     - Robust error handling with detailed tracking
-    - Easy external CV evaluation
-    - R-like simple learners (SL.mean equivalent)
+    - Cross-validation for meta-learner training
+    - Compatible with sklearn pipelines and model selection
+
+    Parameters
+    ----------
+    learners : list of (name, estimator) tuples
+        Base learning algorithms to include in the ensemble.
+        Each tuple should be (str, estimator) where estimator implements
+        sklearn's fit/predict interface.
+    method : str, default='nnloglik'
+        Meta-learning strategy. Options:
+        - 'nnloglik': Non-negative binomial log-likelihood (R's method.NNloglik)
+        - 'nnls': Non-negative least squares
+        - 'auc': AUC optimization via Nelder-Mead
+        - 'logistic': Logistic regression meta-learner
+    cv : int or cross-validation generator, default=5
+        Cross-validation strategy for meta-learner training.
+        - If int, use StratifiedKFold with this many folds
+        - If cross-validation generator (e.g., GroupKFold, TimeSeriesSplit),
+          use the provided splitter directly
+    random_state : int, optional
+        Random seed for reproducibility
+    verbose : bool, default=False
+        Whether to print detailed information during fitting
+    track_errors : bool, default=True
+        Whether to track errors and warnings for diagnostics
+    trim : float, default=0.001
+        Probability trimming bounds to avoid numerical issues.
+        Changed from 0.025 to 0.001 to match R SuperLearner default.
+    normalize_weights : bool, default=True
+        Whether to normalize meta-learner weights to sum to 1
+    n_jobs : int, default=1
+        Number of parallel jobs (not yet fully implemented)
+    min_viable_learners : int, default=1
+        Minimum number of learners that must succeed in final refit.
+        If fewer learners succeed, an exception is raised.
+
+    Attributes
+    ----------
+    base_learners_full_ : list of (name, estimator) tuples
+        Fitted base learners on full training data
+    meta_learner_ : estimator or None
+        Fitted meta-learner (if applicable)
+    meta_weights_ : ndarray or None
+        Meta-learner weights for combining base predictions
+    base_learner_names_ : list of str
+        Names of base learners
+    Z_ : ndarray, shape (n_samples, n_learners)
+        Cross-validated predictions from base learners
+    cv_predictions_ : list of ndarray
+        Per-learner CV predictions
+    feature_names_ : list of str
+        Feature names (extracted from DataFrame or generated)
+
+    Examples
+    --------
+    >>> from mysuperlearner import SuperLearner
+    >>> from sklearn.ensemble import RandomForestClassifier
+    >>> from sklearn.linear_model import LogisticRegression
+    >>>
+    >>> learners = [
+    ...     ('RF', RandomForestClassifier(random_state=42)),
+    ...     ('LR', LogisticRegression(random_state=42))
+    ... ]
+    >>> sl = SuperLearner(learners=learners, method='nnloglik', cv=5)
+    >>> sl.fit(X_train, y_train)
+    >>> predictions = sl.predict_proba(X_test)
     """
-    
-    def __init__(self, method='nnloglik', folds=5, random_state=None, 
-                 verbose=False, track_errors=True, **kwargs):
-        """
-        Parameters:
-        -----------
-        method : str, default='nnloglik'
-            Meta learning method. Options: 'nnloglik', 'auc', 'nnls', 'logistic'
-        folds : int, default=5
-            Number of cross-validation folds for internal CV
-        random_state : int, optional
-            Random state for reproducibility
-        verbose : bool, default=False
-            Whether to print detailed information
-        track_errors : bool, default=True
-            Whether to track errors and warnings
-        **kwargs : additional arguments passed to SuperLearner
-            trim : float, default=0.025
-                Probability trimming bounds to avoid numerical issues
-            normalize_weights : bool, default=True
-                Whether to normalize meta-learner weights to sum to 1
-            n_jobs : int, default=1
-                Number of parallel jobs (not yet fully implemented)
-            min_viable_learners : int, default=1
-                Minimum number of learners that must succeed in final refit.
-                If fewer learners succeed, an exception is raised.
-        """
+
+    def __init__(self, learners=None, method='nnloglik', cv=5, random_state=None,
+                 verbose=False, track_errors=True, trim=0.001,
+                 normalize_weights=True, n_jobs=1, min_viable_learners=1):
+        self.learners = learners
         self.method = method
-        self.folds = folds
+        self.cv = cv
         self.random_state = random_state
         self.verbose = verbose
         self.track_errors = track_errors
-        self.kwargs = kwargs
-        
+        self.trim = trim
+        self.normalize_weights = normalize_weights
+        self.n_jobs = n_jobs
+        self.min_viable_learners = min_viable_learners
+
         # Initialize error tracking
         if self.track_errors:
             self.error_tracker = ErrorTracker(verbose=verbose)
         else:
             self.error_tracker = None
-        
-    # Note: we implement explicit level-1 builder and do not rely on mlens
-        
-        # Track if we've added the meta learner
-        self._meta_added = False
-        self._base_learners_added = False
-        
-        # Store information about learners and performance
-        self.learner_names_ = []
-        self.cv_results_ = None
-        self.individual_predictions_ = None
-        # explicit builder settings
-        self.trim = self.kwargs.pop('trim', 0.025)
-        self.normalize_weights = self.kwargs.pop('normalize_weights', True)
-        self.n_jobs = self.kwargs.pop('n_jobs', 1)
-        self.min_viable_learners = self.kwargs.pop('min_viable_learners', 1)
 
     # ... (rest of the ExtendedSuperLearner class)
 
@@ -99,24 +131,33 @@ class ExtendedSuperLearner(BaseEstimator, ClassifierMixin):
         # fallback to predict (0/1)
         return np.asarray(model.predict(X), dtype=float)
 
-    def _build_level1(self, X, y, learners: List[tuple], folds: int = None,
-                      random_state: Optional[int] = None, sample_weight=None):
+    def _build_level1(self, X, y, learners: List[tuple], cv=None,
+                      random_state: Optional[int] = None, sample_weight=None, groups=None):
         """Construct level-1 matrix Z (n x K) of CV predictions.
 
         learners: list of (name, estimator) tuples.
+        cv: int or CV splitter object
+        groups: array-like, optional. Group labels for GroupKFold, etc.
         Returns Z, list_of_cv_preds (list of arrays per learner), fold_indices
         """
-        if folds is None:
-            folds = self.folds
+        if cv is None:
+            cv = self.cv
+
         X_arr, y_arr = check_X_y(X, y)
-        skf = StratifiedKFold(n_splits=folds, shuffle=True, random_state=random_state)
+
+        # Handle both int and CV splitter objects
+        if isinstance(cv, int):
+            cv_splitter = StratifiedKFold(n_splits=cv, shuffle=True, random_state=random_state)
+        else:
+            # Assume it's a cross-validation splitter
+            cv_splitter = cv
         n_samples = X_arr.shape[0]
         K = len(learners)
         Z = np.zeros((n_samples, K), dtype=float)
         cv_preds = [np.zeros(n_samples, dtype=float) for _ in range(K)]
         fold_indices = []
 
-        for train_idx, test_idx in skf.split(X_arr, y_arr):
+        for train_idx, test_idx in cv_splitter.split(X_arr, y_arr, groups):
             fold_indices.append((train_idx, test_idx))
             X_tr, X_te = X_arr[train_idx], X_arr[test_idx]
             y_tr = y_arr[train_idx]
@@ -148,8 +189,8 @@ class ExtendedSuperLearner(BaseEstimator, ClassifierMixin):
         Z = np.clip(Z, self.trim, 1.0 - self.trim)
         return Z, cv_preds, fold_indices
 
-    def fit_explicit(self, X, y, base_learners: List[tuple], sample_weight=None, store_X=False):
-        """Fit using explicit level-1 builder and refit base learners on full data.
+    def fit(self, X, y, sample_weight=None, store_X=False, groups=None):
+        """Fit Super Learner ensemble.
 
         Parameters
         ----------
@@ -157,8 +198,6 @@ class ExtendedSuperLearner(BaseEstimator, ClassifierMixin):
             Training feature matrix.
         y : array-like of shape (n_samples,)
             Target values (binary: 0 or 1).
-        base_learners : list of (name, estimator) tuples
-            Base learning algorithms to include in ensemble.
         sample_weight : array-like of shape (n_samples,), optional
             Sample weights. If provided, learners that support sample_weight
             will use them during training.
@@ -166,12 +205,22 @@ class ExtendedSuperLearner(BaseEstimator, ClassifierMixin):
             Whether to store training data for variable importance calculations.
             If True, enables variable importance methods but increases memory usage.
             Feature names are always stored (minimal overhead).
+        groups : array-like of shape (n_samples,), optional
+            Group labels for samples. Used by GroupKFold and similar CV splitters.
+            Ignored if cv is an integer.
 
         Returns
         -------
-        self : ExtendedSuperLearner
+        self : SuperLearner
             Fitted estimator.
         """
+        if self.learners is None:
+            raise ValueError(
+                "No learners provided. Either pass learners to the constructor "
+                "(SuperLearner(learners=[...])) or use fit_explicit(X, y, base_learners) "
+                "(deprecated)."
+            )
+        base_learners = self.learners
         # Store feature names before validation converts to array
         if hasattr(X, 'columns'):
             # DataFrame input - extract feature names
@@ -193,8 +242,8 @@ class ExtendedSuperLearner(BaseEstimator, ClassifierMixin):
 
         # Build level-1 matrix
         Z, cv_preds, fold_indices = self._build_level1(X_arr, y_arr, base_learners,
-                                                       folds=self.folds, random_state=self.random_state,
-                                                       sample_weight=sample_weight)
+                                                       cv=self.cv, random_state=self.random_state,
+                                                       sample_weight=sample_weight, groups=groups)
         self.Z_ = Z
         self.cv_predictions_ = cv_preds
         self.fold_indices_ = fold_indices
@@ -314,11 +363,28 @@ class ExtendedSuperLearner(BaseEstimator, ClassifierMixin):
 
         return self
 
+    def fit_explicit(self, X, y, base_learners, sample_weight=None, store_X=False):
+        """
+        Deprecated: Use fit() instead.
+
+        This method is provided for backward compatibility and will be removed in v0.3.0.
+        Use SuperLearner(learners=base_learners).fit(X, y) instead.
+        """
+        warnings.warn(
+            "fit_explicit() is deprecated and will be removed in v0.3.0. "
+            "Use SuperLearner(learners=base_learners).fit(X, y) instead.",
+            DeprecationWarning,
+            stacklevel=2
+        )
+        # Temporarily override self.learners
+        self.learners = base_learners
+        return self.fit(X, y, sample_weight=sample_weight, store_X=store_X)
+
     def predict_proba(self, X):
         """Predict probabilities for X using fitted base learners and meta weights/learner."""
         X_arr = check_array(X)
         if not hasattr(self, 'base_learners_full_'):
-            raise RuntimeError('Model not fitted. Call fit_explicit first with base_learners.')
+            raise RuntimeError('Model not fitted. Call fit() first.')
 
         # build matrix of base predictions on X
         K = len(self.base_learners_full_)
@@ -392,14 +458,14 @@ class ExtendedSuperLearner(BaseEstimator, ClassifierMixin):
 
         Examples
         --------
-        >>> sl = ExtendedSuperLearner(method='nnloglik', folds=5)
-        >>> sl.fit_explicit(X_train, y_train, learners)
+        >>> sl = SuperLearner(learners=learners, method='nnloglik', cv=5)
+        >>> sl.fit(X_train, y_train)
         >>> diagnostics = sl.get_diagnostics()
         >>> print(f"Meta weights: {diagnostics['meta_weights']}")
         """
         diagnostics = {
             'method': self.method,
-            'n_folds': self.folds,
+            'n_folds': self.cv,
             'base_learner_names': getattr(self, 'base_learner_names_', []),
             'meta_weights': getattr(self, 'meta_weights_', None),
         }

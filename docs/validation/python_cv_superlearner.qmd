@@ -1,0 +1,207 @@
+---
+title: "Python MySuperLearner Validation"
+format:
+  html:
+    self-contained: true
+    code-fold: false
+    toc: true
+    toc-depth: 2
+---
+
+## Overview
+
+This document demonstrates cross-validated SuperLearner using the Python `mysuperlearner` package. It uses the same dataset and similar learners as the parallel R validation to enable visual comparison of results.
+
+## Setup
+
+```{python}
+import numpy as np
+from sklearn.datasets import make_classification
+from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
+from sklearn.linear_model import LogisticRegression
+from sklearn.svm import SVC
+from mysuperlearner import SuperLearner, CVSuperLearner, InterceptOnlyEstimator
+import matplotlib.pyplot as plt
+import warnings
+warnings.filterwarnings('ignore')
+
+# Set random seed for reproducibility
+np.random.seed(123)
+```
+
+## Generate Synthetic Dataset
+
+We'll generate a challenging classification dataset with some noise:
+
+```{python}
+# Generate data - same parameters across both Python and R
+n_samples = 500
+n_features = 20
+n_informative = 3
+n_redundant = 5
+
+X, y = make_classification(
+    n_samples=n_samples,
+    n_features=n_features,
+    n_informative=n_informative,
+    n_redundant=n_redundant,
+    n_clusters_per_class=2,
+    flip_y=0.1,
+    class_sep=0.5,
+    random_state=123
+)
+
+print(f"Dataset shape: {X.shape}")
+print(f"Class distribution: {np.bincount(y)}")
+print(f"Class proportion: {y.mean():.3f}")
+```
+
+## Define Base Learners
+
+We'll use a library of learners comparable to R's SuperLearner:
+
+```{python}
+# Define base learners matching R's SuperLearner library
+learners = [
+    ('SL.mean', InterceptOnlyEstimator()),
+    ('SL.glm', LogisticRegression(max_iter=1000, random_state=1)),
+    ('SL.randomForest', RandomForestClassifier(n_estimators=100, max_depth=None, random_state=1)),
+    ('SL.gbm', GradientBoostingClassifier(n_estimators=100, random_state=1)),
+    ('SL.svm', SVC(probability=True, kernel='radial', random_state=1))
+]
+
+print("Base learners:")
+for name, _ in learners:
+    print(f"  - {name}")
+```
+
+## Cross-Validated SuperLearner
+
+We'll use 5-fold external cross-validation to get unbiased performance estimates:
+
+```{python}
+# Run cross-validated SuperLearner
+cv_sl = CVSuperLearner(
+    learners=learners,
+    method='nnloglik',
+    cv=5,
+    inner_cv=5,
+    random_state=1,
+    verbose=False,
+    n_jobs=1
+)
+
+cv_sl.fit(X, y)
+cv_results = cv_sl.get_results()
+
+print("\nCV evaluation completed successfully")
+print(f"Total evaluations: {len(cv_results.metrics)}")
+```
+
+## Results Summary
+
+```{python}
+# Display summary statistics
+summary = cv_results.summary()
+print("\nCross-Validation Performance Summary:")
+print("=" * 60)
+print(summary[['auc', 'accuracy', 'logloss']].to_string(index=True))
+```
+
+```{python}
+# Compare SuperLearner to best base learner
+comparison = cv_results.compare_to_best()
+print("\nSuperLearner vs Best Base Learner:")
+print("=" * 60)
+print(comparison.to_string(index=False))
+```
+
+## Forest Plot
+
+Performance comparison across all learners with 95% confidence intervals:
+
+```{python}
+#| fig-width: 10
+#| fig-height: 6
+
+fig, ax = cv_results.plot_forest(metric='auc')
+plt.tight_layout()
+plt.show()
+```
+
+## ROC Curves
+
+Receiver Operating Characteristic curves for all learners:
+
+```{python}
+#| fig-width: 10
+#| fig-height: 8
+
+fig, ax = cv_results.plot_roc_curves()
+plt.tight_layout()
+plt.show()
+```
+
+## Box Plots
+
+Distribution of performance across CV folds:
+
+```{python}
+#| fig-width: 10
+#| fig-height: 6
+
+fig, ax = cv_results.plot_boxplot(metric='auc')
+plt.tight_layout()
+plt.show()
+```
+
+## Meta-Learner Weights
+
+Show the meta-learner weights for the full SuperLearner fit:
+
+```{python}
+# Fit on full dataset to get meta-learner weights
+sl_full = SuperLearner(learners=learners, method='nnloglik', cv=5, random_state=1, verbose=False)
+sl_full.fit(X, y)
+
+if sl_full.meta_weights_ is not None:
+    print("\nMeta-learner weights (from full dataset fit):")
+    print("=" * 60)
+    for (name, _), weight in zip(learners, sl_full.meta_weights_):
+        print(f"  {name:20s}: {weight:7.4f}")
+else:
+    print("\nMeta-learner weights not available for this method")
+```
+
+## Detailed Metrics by Fold
+
+```{python}
+# Show per-fold metrics for each learner
+print("\nDetailed metrics by fold:")
+print("=" * 80)
+metrics_display = cv_results.metrics[['fold', 'learner', 'auc', 'accuracy', 'logloss']]
+print(metrics_display.to_string(index=False))
+```
+
+## Session Information
+
+```{python}
+import sys
+import sklearn
+import mysuperlearner
+
+print("\nPython environment:")
+print(f"  Python version: {sys.version.split()[0]}")
+print(f"  NumPy version: {np.__version__}")
+print(f"  scikit-learn version: {sklearn.__version__}")
+print(f"  mysuperlearner version: {mysuperlearner.__version__}")
+```
+
+## Summary
+
+This analysis demonstrates the Python `mysuperlearner` package with cross-validated SuperLearner evaluation. The results should be visually comparable to the parallel R analysis using the same dataset and similar learners.
+
+Key findings:
+- The forest plot shows performance with confidence intervals
+- ROC curves visualize discrimination across all learners
+- The meta-learner combines base learners to achieve competitive performance

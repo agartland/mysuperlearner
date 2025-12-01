@@ -1,22 +1,31 @@
 """mysuperlearner package public interface"""
 
-from .extended_super_learner import ExtendedSuperLearner
+from .super_learner import SuperLearner
 from .meta_learners import NNLogLikEstimator, AUCEstimator, MeanEstimator, InterceptOnlyEstimator
 from .error_handling import ErrorTracker, ErrorType
-from .evaluation import evaluate_super_learner_cv
+from .cv_super_learner import CVSuperLearner
 from .results import SuperLearnerCVResults
 from .variable_importance import compute_variable_importance, VariableImportanceResults
+from .screening import VariableSet, CorrelationScreener, LassoScreener
 from . import visualization
 
-__version__ = '0.1.0'
+# Deprecated aliases for backward compatibility (will be removed in v0.3.0)
+from .super_learner import SuperLearner as ExtendedSuperLearner
+from .cv_super_learner import CVSuperLearner as evaluate_super_learner_cv
+
+__version__ = '0.2.0'
 
 __all__ = [
-	'ExtendedSuperLearner',
+	'SuperLearner',
+	'CVSuperLearner',
 	'NNLogLikEstimator', 'AUCEstimator', 'MeanEstimator', 'InterceptOnlyEstimator',
 	'ErrorTracker', 'ErrorType',
-	'evaluate_super_learner_cv',
 	'SuperLearnerCVResults',
 	'compute_variable_importance',
 	'VariableImportanceResults',
-	'visualization'
+	'VariableSet', 'CorrelationScreener', 'LassoScreener',
+	'visualization',
+	# Deprecated (will be removed in v0.3.0)
+	'ExtendedSuperLearner',
+	'evaluate_super_learner_cv',
 ]

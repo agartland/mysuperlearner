@@ -56,8 +56,7 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.svm import SVC
 
-from mysuperlearner import ExtendedSuperLearner, visualization
-from mysuperlearner.evaluation import evaluate_super_learner_cv
+from mysuperlearner import SuperLearner, CVSuperLearner, visualization
 
 # Set style
 sns.set_style("whitegrid")
@@ -138,14 +137,15 @@ print("\n" + "=" * 70)
 print("Training SuperLearner with NNLogLik Meta-Learner")
 print("=" * 70)
 
-sl = ExtendedSuperLearner(
+sl = SuperLearner(
+    learners=learners,
     method='nnloglik',
-    folds=5,
+    cv=5,
     random_state=42,
     verbose=False
 )
 
-sl.fit_explicit(X_train, y_train, learners)
+sl.fit(X_train, y_train)
 
 # Make predictions
 y_pred_proba = sl.predict_proba(X_test)[:, 1]
@@ -221,13 +221,14 @@ methods = ['nnloglik', 'auc', 'nnls', 'logistic']
 results = []
 
 for method in methods:
-    sl_method = ExtendedSuperLearner(
+    sl_method = SuperLearner(
+        learners=learners,
         method=method,
-        folds=5,
+        cv=5,
         random_state=42,
         verbose=False
     )
-    sl_method.fit_explicit(X_train, y_train, learners)
+    sl_method.fit(X_train, y_train)
 
     y_pred_proba = sl_method.predict_proba(X_test)[:, 1]
     auc_score = roc_auc_score(y_test, y_pred_proba)
@@ -293,25 +294,18 @@ print("\n" + "=" * 70)
 print("External Cross-Validation (like R's CV.SuperLearner)")
 print("=" * 70)
 
-sl_cv = ExtendedSuperLearner(
+cv_sl = CVSuperLearner(
+    learners=learners,
     method='nnloglik',
-    folds=5,
+    cv=5,
+    inner_cv=5,
     random_state=42,
-    verbose=False
+    verbose=False,
+    n_jobs=1
 )
 
-# Use return_object=True and return_predictions=True for full functionality
-cv_results = evaluate_super_learner_cv(
-    X=X,
-    y=y,
-    base_learners=learners,
-    super_learner=sl_cv,
-    outer_folds=5,
-    random_state=42,
-    n_jobs=1,
-    return_predictions=True,
-    return_object=True
-)
+cv_sl.fit(X, y)
+cv_results = cv_sl.get_results()
 
 print(f"\nExternal CV completed: {cv_results}")
 print(f"  - {cv_results.metrics.shape[0]} total evaluations")

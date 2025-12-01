@@ -44,7 +44,7 @@ pip install .
 ### Basic Usage
 
 ```python
-from mysuperlearner import ExtendedSuperLearner
+from mysuperlearner import SuperLearner
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.svm import SVC
@@ -63,10 +63,10 @@ learners = [
 ]
 
 # Create SuperLearner with NNLogLik meta-learner (like R's method.NNloglik)
-sl = ExtendedSuperLearner(method='nnloglik', folds=5, random_state=42, verbose=True)
+sl = SuperLearner(learners=learners, method='nnloglik', cv=5, random_state=42, verbose=True)
 
-# Fit using explicit builder
-sl.fit_explicit(X_train, y_train, learners)
+# Fit using standard sklearn API
+sl.fit(X_train, y_train)
 
 # Make predictions
 y_pred_proba = sl.predict_proba(X_test)
@@ -89,17 +89,18 @@ print(f"Accuracy: {accuracy_score(y_test, y_pred):.4f}")
 
 ## Comparison with R SuperLearner
 
-| Feature | R SuperLearner | Extended SuperLearner | Notes |
-|---------|----------------|----------------------|-------|
+| Feature | R SuperLearner | mysuperlearner | Notes |
+|---------|----------------|----------------|-------|
 | **Core Algorithm** | ✅ | ✅ | Identical cross-validation approach |
 | **method.NNLS** | ✅ | ✅ | Via sklearn LinearRegression(positive=True) |
-| **method.NNloglik** | ✅ | ✅ | Custom implementation with L-BFGS-B |
+| **method.NNloglik** | ✅ | ✅ | Logit-scale optimization with L-BFGS-B |
 | **method.AUC** | ✅ | ✅ | Nelder-Mead optimization |
-| **CV.SuperLearner** | ✅ | ✅ | SuperLearnerCV class |
+| **CV.SuperLearner** | ✅ | ✅ | CVSuperLearner class |
 | **Error Handling** | ✅ | ✅ | Enhanced with detailed tracking |
 | **SL.mean** (base) | ✅ | ✅ | InterceptOnlyEstimator class |
 | **SL.mean** (meta) | ✅ | ✅ | MeanEstimator class |
-| **Screening** | ✅ | ✅ | Via built-in or user-provided preprocessing |
+| **Screening** | ✅ | ✅ | VariableSet, CorrelationScreener, LassoScreener |
+| **Flexible CV** | ✅ | ✅ | Supports sklearn CV splitters (GroupKFold, TimeSeriesSplit) |
 | **Parallel Processing** | ✅ | ✅ | Via joblib / sklearn backends or user configuration |
 
 ## Examples and Tutorials
@@ -108,7 +109,7 @@ print(f"Accuracy: {accuracy_score(y_test, y_pred):.4f}")
 
 ```python
 import numpy as np
-from mysuperlearner import ExtendedSuperLearner
+from mysuperlearner import SuperLearner
 from sklearn.datasets import make_classification
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import roc_auc_score
@@ -132,8 +133,8 @@ methods = ['nnloglik', 'auc', 'nnls', 'logistic']
 results = {}
 
 for method in methods:
-    sl = ExtendedSuperLearner(method=method, folds=5, random_state=42)
-    sl.fit_explicit(X_train, y_train, learners)
+    sl = SuperLearner(learners=learners, method=method, cv=5, random_state=42)
+    sl.fit(X_train, y_train)
 
     y_pred_proba = sl.predict_proba(X_test)[:, 1]
     auc_score = roc_auc_score(y_test, y_pred_proba)
@@ -145,9 +146,11 @@ for method in methods:
 ### Example 2: External Cross-Validation Study
 
 ```python
-from mysuperlearner import ExtendedSuperLearner
-from mysuperlearner.evaluation import evaluate_super_learner_cv
+from mysuperlearner import CVSuperLearner
 from sklearn.datasets import load_breast_cancer
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.linear_model import LogisticRegression
+from sklearn.svm import SVC
 
 # Load real dataset
 data = load_breast_cancer()
@@ -160,29 +163,19 @@ learners = [
     ('SVM', SVC(probability=True, random_state=42))
 ]
 
-# Create SuperLearner configuration
-sl = ExtendedSuperLearner(method='nnloglik', folds=5, random_state=42)
-
 # Run external cross-validation
-cv_results = evaluate_super_learner_cv(
-    X=X,
-    y=y,
-    base_learners=learners,
-    super_learner=sl,
-    outer_folds=10,
-    random_state=42,
-    n_jobs=1
-)
+cv_sl = CVSuperLearner(learners=learners, method='nnloglik', cv=10, inner_cv=5, random_state=42)
+cv_sl.fit(X, y)
+cv_results = cv_sl.get_results()
 
 # Analyze results
 print("\nCross-Validation Results:")
-print(cv_results.groupby('learner')[['auc', 'accuracy']].agg(['mean', 'std']))
+print(cv_results.summary()[['auc', 'accuracy']])
 
 # Compare SuperLearner to best individual
-sl_auc = cv_results[cv_results['learner'] == 'SuperLearner']['auc'].mean()
-best_individual = cv_results[cv_results['learner_type'] == 'base'].groupby('learner')['auc'].mean().max()
-print(f"\nSuperLearner mean AUC: {sl_auc:.4f}")
-print(f"Best individual learner AUC: {best_individual:.4f}")
+comparison = cv_results.compare_to_best()
+print("\nSuperLearner vs Best Base Learner:")
+print(comparison[['metric', 'SuperLearner', 'Best_Base', 'Best_Base_Name', 'Improvement']])
 ```
 
 ## Testing and Development
@@ -200,21 +193,26 @@ pytest tests/ -v
 
 ### Main Classes
 
-#### `ExtendedSuperLearner`
-Extended SuperLearner with R-like functionality and error handling.
+#### `SuperLearner`
+SuperLearner ensemble with R-like functionality and sklearn-compatible API.
 
 **Parameters:**
-- `method` (str): Meta-learning method ('nnloglik', 'auc', 'nnls', 'logistic')
-- `folds` (int): Number of CV folds for internal cross-validation (default: 5)
+- `learners`: List of (name, estimator) tuples - base learning algorithms
+- `method` (str): Meta-learning method ('nnloglik', 'auc', 'nnls', 'logistic') (default: 'nnloglik')
+- `cv` (int or CV splitter): Cross-validation strategy (default: 5)
+  - Integer: number of StratifiedKFold splits
+  - CV splitter: sklearn CV object (e.g., GroupKFold, TimeSeriesSplit)
 - `random_state` (int): Random seed for reproducibility
 - `verbose` (bool): Enable detailed output (default: False)
 - `track_errors` (bool): Enable error tracking (default: True)
+- `trim` (float): Probability trimming for NNLogLik (default: 0.001)
 
 **Key Methods:**
-- `fit_explicit(X, y, base_learners, sample_weight=None)`: Fit the SuperLearner with explicit base learners
-  - `base_learners`: List of (name, estimator) tuples
+- `fit(X, y, sample_weight=None, store_X=False, groups=None)`: Fit the SuperLearner
+  - `groups`: Group labels for GroupKFold CV
 - `predict(X)`: Make binary predictions (0 or 1)
 - `predict_proba(X)`: Get prediction probabilities (returns array of shape (n_samples, 2))
+- `get_diagnostics()`: Get model diagnostics and error information
 
 **Attributes:**
 - `meta_weights_`: Learned meta-learner weights (if applicable)
@@ -222,24 +220,26 @@ Extended SuperLearner with R-like functionality and error handling.
 - `Z_`: Level-1 cross-validated predictions matrix
 - `cv_predictions_`: List of CV predictions per learner
 
-#### External Cross-Validation
-
-Use `evaluate_super_learner_cv()` function for external cross-validation (similar to R's CV.SuperLearner).
-
-**Function:** `mysuperlearner.evaluation.evaluate_super_learner_cv()`
+#### `CVSuperLearner`
+External cross-validation for unbiased performance evaluation (similar to R's CV.SuperLearner).
 
 **Parameters:**
-- `X`: Feature matrix
-- `y`: Target vector
-- `base_learners`: List of (name, estimator) tuples
-- `super_learner`: ExtendedSuperLearner instance
-- `outer_folds` (int): Number of outer CV folds (default: 5)
+- `learners`: List of (name, estimator) tuples - base learning algorithms
+- `method` (str): Meta-learning method (default: 'nnloglik')
+- `cv` (int or CV splitter): Outer CV strategy (default: 5)
+- `inner_cv` (int or CV splitter): Inner CV for meta-learner (default: 5)
 - `random_state` (int): Random seed
-- `sample_weight`: Optional sample weights
-- `metrics` (dict): Custom metrics (default: AUC, log loss, accuracy)
+- `verbose` (bool): Enable detailed output (default: False)
 - `n_jobs` (int): Number of parallel jobs (default: 1)
 
-**Returns:** pandas DataFrame with per-fold metrics for SuperLearner and individual base learners
+**Key Methods:**
+- `fit(X, y, sample_weight=None, groups=None)`: Perform CV evaluation
+- `get_results()`: Get SuperLearnerCVResults object with metrics and predictions
+
+**SuperLearnerCVResults Methods:**
+- `summary()`: Get summary statistics across CV folds
+- `compare_to_best()`: Compare SuperLearner to best base learner
+- `plot_forest()`, `plot_boxplot()`, `plot_roc_curves()`, `plot_calibration()`: Visualization methods
 
 ### Base Learners
 
@@ -270,6 +270,51 @@ AUC-maximizing meta-learner (method.AUC equivalent).
 #### `MeanEstimator`
 Simple mean predictor meta-learner - averages predictions from base learners.
 
+### Screening Classes
+
+#### `VariableSet`
+Manual feature selection by variable names or indices.
+
+**Example:**
+```python
+from mysuperlearner import VariableSet
+from sklearn.pipeline import Pipeline
+from sklearn.linear_model import LogisticRegression
+
+# Select specific features
+var_set = VariableSet(variables=['age', 'sex', 'bmi'], name='baseline')
+baseline_lr = Pipeline([('screen', var_set), ('lr', LogisticRegression())])
+
+learners = [
+    ('Full_LR', LogisticRegression()),
+    ('Baseline_LR', baseline_lr)
+]
+```
+
+#### `CorrelationScreener`
+Screen features by correlation with outcome.
+
+**Example:**
+```python
+from mysuperlearner import CorrelationScreener
+
+# Select features with |correlation| >= 0.15
+screener = CorrelationScreener(threshold=0.15, name='high_corr')
+screened_lr = Pipeline([('screen', screener), ('lr', LogisticRegression())])
+```
+
+#### `LassoScreener`
+Screen features using Lasso regularization.
+
+**Example:**
+```python
+from mysuperlearner import LassoScreener
+
+# Automatic alpha selection via CV
+screener = LassoScreener(classification=True, name='lasso_selected')
+screened_lr = Pipeline([('screen', screener), ('lr', LogisticRegression())])
+```
+
 ### Error Handling
 
 The package includes comprehensive error tracking via the `ErrorTracker` class:
@@ -279,7 +324,7 @@ The package includes comprehensive error tracking via the `ErrorTracker` class:
 - Error types: CONVERGENCE, NAN_INF, PREDICTION, FITTING, OPTIMIZATION, DATA, OTHER
 
 **Usage:**
-Error tracking is enabled by default when creating an `ExtendedSuperLearner` with `track_errors=True`. Errors are stored in `sl.error_tracker.error_records`.
+Error tracking is enabled by default when creating a `SuperLearner` with `track_errors=True`. Errors are stored in `sl.error_tracker.error_records`.
 
 ## Contributing
 

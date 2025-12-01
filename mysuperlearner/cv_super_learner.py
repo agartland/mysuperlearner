@@ -1,7 +1,7 @@
 """
 Outer CV evaluator mimicking R's CV.SuperLearner for binary classification.
-Provides `evaluate_super_learner_cv` which runs an outer Stratified K-fold,
-fits the provided ExtendedSuperLearner (using explicit builder), refits base
+Provides `CVSuperLearner` class and `evaluate_super_learner_cv` function (deprecated).
+Runs an outer Stratified K-fold, fits the provided SuperLearner, refits base
 learners on inner training folds, and computes metrics for each fold for both
 base learners and the ensemble.
 """
@@ -10,14 +10,14 @@ from typing import List, Tuple, Callable, Dict, Any, Optional
 
 import numpy as np
 import pandas as pd
-from sklearn.base import clone
+from sklearn.base import clone, BaseEstimator, ClassifierMixin
 from sklearn.model_selection import StratifiedKFold
 from joblib import Parallel, delayed
 from sklearn.utils.validation import check_X_y, check_array
 from sklearn.metrics import roc_auc_score, log_loss, accuracy_score
 from scipy.special import expit
 
-from .extended_super_learner import ExtendedSuperLearner
+from .super_learner import SuperLearner
 
 
 def _get_proba_fallback(model, X):
@@ -32,7 +32,7 @@ def evaluate_super_learner_cv(
     X,
     y,
     base_learners: List[Tuple[str, Any]],
-    super_learner: ExtendedSuperLearner,
+    super_learner: SuperLearner,
     outer_folds: int = 5,
     random_state: Optional[int] = None,
     sample_weight: Optional[Any] = None,
@@ -51,7 +51,7 @@ def evaluate_super_learner_cv(
         Target vector
     base_learners : list of (name, estimator) tuples
         Base learners to include in the ensemble
-    super_learner : ExtendedSuperLearner
+    super_learner : SuperLearner
         SuperLearner instance (will be cloned for each fold)
     outer_folds : int, default=5
         Number of outer cross-validation folds
@@ -90,7 +90,13 @@ def evaluate_super_learner_cv(
         }
 
     X_arr, y_arr = check_X_y(X, y)
-    skf = StratifiedKFold(n_splits=outer_folds, shuffle=True, random_state=random_state)
+
+    # Handle both int and CV splitter objects for outer CV
+    if isinstance(outer_folds, int):
+        cv_splitter = StratifiedKFold(n_splits=outer_folds, shuffle=True, random_state=random_state)
+    else:
+        # Assume it's a cross-validation splitter
+        cv_splitter = outer_folds
 
     def _run_fold(fold_idx, train_idx, test_idx):
         """Work for a single outer fold: fit SL on train, evaluate on test, return rows."""
@@ -101,8 +107,9 @@ def evaluate_super_learner_cv(
             sw_tr = np.asarray(sample_weight)[train_idx]
 
         sl = clone(super_learner)
-        # Use explicit builder to ensure parity with R
-        sl.fit_explicit(X_tr, y_tr, base_learners, sample_weight=sw_tr)
+        # Set learners for this fold and fit
+        sl.learners = base_learners
+        sl.fit(X_tr, y_tr, sample_weight=sw_tr)
 
         try:
             sl_p = sl.predict_proba(X_te)[:, 1]
@@ -127,7 +134,7 @@ def evaluate_super_learner_cv(
                 row[mname] = np.nan
         local_rows.append(row)
 
-        # Evaluate each base learner (they were refit on full training data by fit_explicit)
+        # Evaluate each base learner (they were refit on full training data by fit)
         for name, mdl in sl.base_learners_full_:
             try:
                 p = _get_proba_fallback(mdl, X_te)
@@ -153,7 +160,7 @@ def evaluate_super_learner_cv(
     # Prepare fold inputs
     fold_inputs = []
     fold_num = 0
-    for train_idx, test_idx in skf.split(X_arr, y_arr):
+    for train_idx, test_idx in cv_splitter.split(X_arr, y_arr):
         fold_num += 1
         fold_inputs.append((fold_num, train_idx, test_idx))
 
@@ -208,7 +215,7 @@ def evaluate_super_learner_cv(
                 'outer_folds': outer_folds,
                 'random_state': random_state,
                 'method': super_learner.method,
-                'inner_folds': super_learner.folds
+                'inner_folds': super_learner.cv
             }
             return SuperLearnerCVResults(
                 metrics=results_df,
@@ -221,3 +228,139 @@ def evaluate_super_learner_cv(
         # flatten results
         rows = [r for fold_res in results for r in fold_res]
         return pd.DataFrame(rows)
+
+
+class CVSuperLearner(BaseEstimator, ClassifierMixin):
+    """
+    Cross-validated Super Learner for unbiased performance evaluation.
+
+    Equivalent to R's CV.SuperLearner function but with sklearn-style API.
+
+    Parameters
+    ----------
+    learners : list of (name, estimator) tuples
+        Base learners to include in the ensemble
+    method : str, default='nnloglik'
+        Meta-learning strategy ('nnloglik', 'nnls', 'auc', 'logistic')
+    cv : int, default=5
+        Number of outer cross-validation folds
+    inner_cv : int, default=5
+        Number of inner CV folds for meta-learner training
+    random_state : int, optional
+        Random seed for reproducibility
+    n_jobs : int, default=1
+        Number of parallel jobs for outer CV
+    verbose : bool, default=False
+        Whether to print progress messages
+
+    Attributes
+    ----------
+    results_ : SuperLearnerCVResults
+        Results object containing metrics and predictions
+
+    Examples
+    --------
+    >>> from mysuperlearner import CVSuperLearner
+    >>> from sklearn.ensemble import RandomForestClassifier
+    >>> from sklearn.linear_model import LogisticRegression
+    >>>
+    >>> learners = [
+    ...     ('RF', RandomForestClassifier(random_state=42)),
+    ...     ('LR', LogisticRegression(random_state=42))
+    ... ]
+    >>> cv_sl = CVSuperLearner(learners=learners, method='nnloglik', cv=5)
+    >>> cv_sl.fit(X_train, y_train)
+    >>> results = cv_sl.get_results()
+    >>> print(results.summary())
+    """
+
+    def __init__(self, learners, method='nnloglik', cv=5, inner_cv=5,
+                 random_state=None, n_jobs=1, verbose=False, **kwargs):
+        self.learners = learners
+        self.method = method
+        self.cv = cv
+        self.inner_cv = inner_cv
+        self.random_state = random_state
+        self.n_jobs = n_jobs
+        self.verbose = verbose
+        self.kwargs = kwargs
+        self.results_ = None
+
+    def fit(self, X, y, sample_weight=None, groups=None):
+        """
+        Fit CV Super Learner and return self.
+
+        Parameters
+        ----------
+        X : array-like, shape (n_samples, n_features)
+            Training data
+        y : array-like, shape (n_samples,)
+            Target values
+        sample_weight : array-like, shape (n_samples,), optional
+            Sample weights
+        groups : array-like, shape (n_samples,), optional
+            Group labels (not currently used)
+
+        Returns
+        -------
+        self : CVSuperLearner
+            Fitted estimator with results_ attribute
+        """
+        # Create a SuperLearner instance for evaluation
+        from .super_learner import SuperLearner
+        sl = SuperLearner(learners=self.learners, method=self.method, cv=self.inner_cv,
+                          random_state=self.random_state,
+                          verbose=self.verbose, **self.kwargs)
+
+        # Run CV evaluation using existing function
+        self.results_ = evaluate_super_learner_cv(
+            X=X,
+            y=y,
+            base_learners=self.learners,
+            super_learner=sl,
+            outer_folds=self.cv,
+            random_state=self.random_state,
+            sample_weight=sample_weight,
+            n_jobs=self.n_jobs,
+            return_predictions=True,
+            return_object=True
+        )
+
+        return self
+
+    def get_results(self):
+        """
+        Return SuperLearnerCVResults object.
+
+        Returns
+        -------
+        results : SuperLearnerCVResults
+            Results object containing metrics and predictions
+        """
+        if self.results_ is None:
+            raise ValueError('CVSuperLearner not fitted yet. Call fit() first.')
+        return self.results_
+
+    def predict(self, X):
+        """
+        Predict class labels (not implemented - use get_results() instead).
+
+        Note: CVSuperLearner is for evaluation, not prediction.
+        Use SuperLearner for prediction on new data.
+        """
+        raise NotImplementedError(
+            "CVSuperLearner is for cross-validation evaluation only. "
+            "Use SuperLearner for prediction on new data."
+        )
+
+    def predict_proba(self, X):
+        """
+        Predict class probabilities (not implemented - use get_results() instead).
+
+        Note: CVSuperLearner is for evaluation, not prediction.
+        Use SuperLearner for prediction on new data.
+        """
+        raise NotImplementedError(
+            "CVSuperLearner is for cross-validation evaluation only. "
+            "Use SuperLearner for prediction on new data."
+        )

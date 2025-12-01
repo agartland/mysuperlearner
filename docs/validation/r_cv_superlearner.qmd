@@ -1,0 +1,371 @@
+---
+title: "R CV.SuperLearner Validation"
+format:
+  html:
+    self-contained: true
+    code-fold: false
+    toc: true
+    toc-depth: 2
+---
+
+## Overview
+
+This document demonstrates cross-validated SuperLearner using R's `SuperLearner` package. It uses the same dataset and similar learners as the parallel Python validation to enable visual comparison of results.
+
+## Setup
+
+```{r}
+library(SuperLearner)
+library(randomForest)
+library(gbm)
+library(e1071)
+library(cvAUC)
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+
+# Set random seed for reproducibility
+set.seed(123)
+```
+
+## Generate Synthetic Dataset
+
+We'll generate a challenging classification dataset matching the Python version:
+
+```{r}
+# Generate data - same parameters as Python version
+n_samples <- 500
+n_features <- 20
+
+# Generate features from standard normal
+X <- matrix(rnorm(n_samples * n_features), nrow = n_samples, ncol = n_features)
+
+# Create a signal from a subset of features (matching n_informative = 3)
+# Using a logistic model with noise
+signal <- 0.5 * X[, 1] + 0.5 * X[, 2] + 0.5 * X[, 3]
+p <- 1 / (1 + exp(-signal))
+
+# Generate binary outcome with some noise (flip_y = 0.1)
+y <- rbinom(n_samples, 1, p)
+flip_indices <- sample(n_samples, size = floor(0.1 * n_samples))
+y[flip_indices] <- 1 - y[flip_indices]
+
+# Convert to data frame
+X <- as.data.frame(X)
+colnames(X) <- paste0("V", 1:n_features)
+
+cat("Dataset shape:", nrow(X), "x", ncol(X), "\n")
+cat("Class distribution:", table(y), "\n")
+cat("Class proportion:", mean(y), "\n")
+```
+
+## Define Base Learners
+
+We'll use a library of learners comparable to Python's scikit-learn:
+
+```{r}
+# Define base learners matching Python version
+SL.library <- c(
+    "SL.mean",
+    "SL.glm",
+    "SL.randomForest",
+    "SL.gbm",
+    "SL.svm"
+)
+
+cat("Base learners:\n")
+for (learner in SL.library) {
+    cat("  -", learner, "\n")
+}
+```
+
+## Cross-Validated SuperLearner
+
+We'll use 5-fold external cross-validation to get unbiased performance estimates:
+
+```{r}
+# Run CV.SuperLearner with 5-fold CV and progress updates
+cat("\nRunning CV.SuperLearner with 5 folds...\n")
+
+# Custom wrapper to show progress
+library(progress)
+
+cv_sl <- CV.SuperLearner(
+    Y = y,
+    X = X,
+    V = 5,
+    SL.library = SL.library,
+    method = "method.NNloglik",
+    family = binomial(),
+    control = list(saveFitLibrary = TRUE),
+    verbose = TRUE  # Enable verbose output to see progress
+)
+
+cat("\nCV.SuperLearner completed successfully!\n")
+```
+
+## Results Summary
+
+```{r}
+# Display summary
+summary(cv_sl)
+```
+
+```{r}
+# Extract and display AUC for each learner
+cat("\nCross-Validation AUC Summary:\n")
+cat("=" , rep("=", 59), "\n", sep = "")
+
+# Calculate mean and SD for each algorithm
+for (i in 1:length(SL.library)) {
+    learner_name <- SL.library[i]
+    auc_vals <- cv_sl$coef[, i]
+
+    cat(sprintf("%-20s: Mean = %.4f, SD = %.4f\n",
+                learner_name, mean(auc_vals), sd(auc_vals)))
+}
+
+# SuperLearner
+sl_preds <- cv_sl$SL.predict
+sl_auc <- ci.cvAUC(predictions = sl_preds, labels = y, folds = cv_sl$folds)
+cat(sprintf("%-20s: Mean = %.4f, SD = %.4f\n",
+            "SuperLearner", sl_auc$cvAUC, sl_auc$se))
+```
+
+## Forest Plot
+
+Performance comparison across all learners with 95% confidence intervals:
+
+```{r}
+#| fig-width: 10
+#| fig-height: 6
+
+# Calculate AUC for each learner across folds
+auc_data <- data.frame()
+
+for (i in 1:length(SL.library)) {
+    learner_name <- SL.library[i]
+    preds <- cv_sl$library.predict[, i]
+
+    # Calculate AUC for each fold
+    fold_aucs <- numeric(5)
+    for (fold in 1:5) {
+        fold_idx <- cv_sl$folds[[fold]]
+        fold_aucs[fold] <- cvAUC::AUC(predictions = preds[fold_idx],
+                                       labels = y[fold_idx])
+    }
+
+    auc_data <- rbind(auc_data, data.frame(
+        learner = learner_name,
+        auc = fold_aucs,
+        fold = 1:5
+    ))
+}
+
+# Add SuperLearner
+sl_fold_aucs <- numeric(5)
+for (fold in 1:5) {
+    fold_idx <- cv_sl$folds[[fold]]
+    sl_fold_aucs[fold] <- cvAUC::AUC(predictions = cv_sl$SL.predict[fold_idx],
+                                      labels = y[fold_idx])
+}
+
+auc_data <- rbind(auc_data, data.frame(
+    learner = "SuperLearner",
+    auc = sl_fold_aucs,
+    fold = 1:5
+))
+
+# Calculate summary statistics
+auc_summary <- auc_data %>%
+    group_by(learner) %>%
+    summarise(
+        mean_auc = mean(auc),
+        sd_auc = sd(auc),
+        se_auc = sd_auc / sqrt(n()),
+        ci_lower = mean_auc - 1.96 * se_auc,
+        ci_upper = mean_auc + 1.96 * se_auc
+    ) %>%
+    arrange(mean_auc)
+
+# Create forest plot
+auc_summary$learner <- factor(auc_summary$learner, levels = auc_summary$learner)
+
+ggplot(auc_summary, aes(x = mean_auc, y = learner)) +
+    geom_point(size = 3) +
+    geom_errorbarh(aes(xmin = ci_lower, xmax = ci_upper), height = 0.2) +
+    geom_vline(xintercept = auc_summary$mean_auc[auc_summary$learner == "SuperLearner"],
+               linetype = "dashed", color = "red", alpha = 0.5) +
+    labs(
+        title = "Cross-Validated AUC with 95% Confidence Intervals",
+        x = "AUC",
+        y = "Learner"
+    ) +
+    theme_minimal() +
+    theme(
+        plot.title = element_text(hjust = 0.5, size = 14, face = "bold"),
+        axis.text = element_text(size = 11),
+        axis.title = element_text(size = 12)
+    )
+```
+
+## ROC Curves
+
+Receiver Operating Characteristic curves for all learners:
+
+```{r}
+#| fig-width: 10
+#| fig-height: 8
+
+# Calculate ROC curves for each learner
+library(pROC)
+
+# Prepare data for plotting
+roc_data <- data.frame()
+
+for (i in 1:length(SL.library)) {
+    learner_name <- SL.library[i]
+    preds <- cv_sl$library.predict[, i]
+
+    roc_obj <- roc(y, preds, quiet = TRUE)
+
+    roc_data <- rbind(roc_data, data.frame(
+        learner = learner_name,
+        fpr = 1 - roc_obj$specificities,
+        tpr = roc_obj$sensitivities,
+        auc = as.numeric(auc(roc_obj))
+    ))
+}
+
+# Add SuperLearner
+sl_roc <- roc(y, cv_sl$SL.predict, quiet = TRUE)
+roc_data <- rbind(roc_data, data.frame(
+    learner = "SuperLearner",
+    fpr = 1 - sl_roc$specificities,
+    tpr = sl_roc$sensitivities,
+    auc = as.numeric(auc(sl_roc))
+))
+
+# Create labels with AUC values
+roc_data <- roc_data %>%
+    group_by(learner) %>%
+    mutate(label = sprintf("%s (AUC = %.3f)", unique(learner), unique(auc))) %>%
+    ungroup()
+
+# Plot ROC curves
+ggplot(roc_data, aes(x = fpr, y = tpr, color = label)) +
+    geom_line(linewidth = 1) +
+    geom_abline(intercept = 0, slope = 1, linetype = "dashed", color = "gray50") +
+    labs(
+        title = "ROC Curves for All Learners",
+        x = "False Positive Rate",
+        y = "True Positive Rate",
+        color = "Learner"
+    ) +
+    theme_minimal() +
+    theme(
+        plot.title = element_text(hjust = 0.5, size = 14, face = "bold"),
+        axis.text = element_text(size = 11),
+        axis.title = element_text(size = 12),
+        legend.position = "right",
+        legend.text = element_text(size = 10)
+    ) +
+    coord_fixed()
+```
+
+## Box Plots
+
+Distribution of performance across CV folds:
+
+```{r}
+#| fig-width: 10
+#| fig-height: 6
+
+# Reorder learners by median AUC
+auc_data$learner <- factor(
+    auc_data$learner,
+    levels = auc_data %>%
+        group_by(learner) %>%
+        summarise(med = median(auc)) %>%
+        arrange(med) %>%
+        pull(learner)
+)
+
+ggplot(auc_data, aes(x = learner, y = auc, fill = learner)) +
+    geom_boxplot() +
+    geom_jitter(width = 0.2, alpha = 0.3) +
+    labs(
+        title = "Distribution of AUC Across CV Folds",
+        x = "Learner",
+        y = "AUC"
+    ) +
+    theme_minimal() +
+    theme(
+        plot.title = element_text(hjust = 0.5, size = 14, face = "bold"),
+        axis.text = element_text(size = 11),
+        axis.text.x = element_text(angle = 45, hjust = 1),
+        axis.title = element_text(size = 12),
+        legend.position = "none"
+    )
+```
+
+## Meta-Learner Weights
+
+Show the meta-learner weights from the final SuperLearner fit:
+
+```{r}
+cat("\nMeta-learner weights (from full dataset fit):\n")
+cat("=" , rep("=", 59), "\n", sep = "")
+
+# Fit SuperLearner on full data to get weights
+sl_full <- SuperLearner(
+    Y = y,
+    X = X,
+    SL.library = SL.library,
+    method = "method.NNloglik",
+    family = binomial(),
+    cvControl = list(V = 5),
+    verbose = FALSE
+)
+
+for (i in 1:length(SL.library)) {
+    cat(sprintf("  %-20s: %7.4f\n",
+                SL.library[i], sl_full$coef[i]))
+}
+```
+
+## Detailed Metrics by Fold
+
+```{r}
+cat("\nDetailed AUC by fold:\n")
+cat("=" , rep("=", 79), "\n", sep = "")
+
+# Create wide format table
+auc_wide <- auc_data %>%
+    select(learner, fold, auc) %>%
+    pivot_wider(names_from = fold, values_from = auc, names_prefix = "Fold_")
+
+print(auc_wide, n = Inf)
+```
+
+## Session Information
+
+```{r}
+sessionInfo()
+```
+
+## Summary
+
+This analysis demonstrates the R `SuperLearner` package with cross-validated SuperLearner evaluation using `CV.SuperLearner`. The results should be visually comparable to the parallel Python analysis using the same dataset and similar learners.
+
+Key findings:
+- The forest plot shows performance with confidence intervals
+- ROC curves visualize discrimination across all learners
+- The meta-learner combines base learners to achieve competitive performance
+
+Note: Exact numerical results will differ from Python due to:
+1. Different random number generators
+2. Different algorithm implementations across languages
+3. Different CV fold assignments
+
+However, the overall patterns and relative performance should be similar.

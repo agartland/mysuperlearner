@@ -24,8 +24,8 @@ from sklearn.naive_bayes import GaussianNB
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.preprocessing import StandardScaler
 
-from mysuperlearner.extended_super_learner import ExtendedSuperLearner
-from mysuperlearner.evaluation import evaluate_super_learner_cv
+from mysuperlearner import SuperLearner, CVSuperLearner
+from mysuperlearner.cv_super_learner import evaluate_super_learner_cv
 from mysuperlearner.meta_learners import (
     NNLogLikEstimator, AUCEstimator, MeanEstimator, InterceptOnlyEstimator
 )
@@ -189,7 +189,7 @@ class TestMetaLearners:
                                      base_learners_standard, method):
         """Test that each meta-learner can fit on clean data."""
         X, y = simple_classification_data
-        sl = ExtendedSuperLearner(method=method, folds=3, random_state=42)
+        sl = SuperLearner(method=method, cv=3, random_state=42)
         sl.fit_explicit(X, y, base_learners_standard)
 
         # Check predictions
@@ -203,7 +203,7 @@ class TestMetaLearners:
                                                 base_learners_standard, method):
         """Test meta-learners handle imbalanced data."""
         X, y = imbalanced_data
-        sl = ExtendedSuperLearner(method=method, folds=3, random_state=42)
+        sl = SuperLearner(method=method, cv=3, random_state=42)
         sl.fit_explicit(X, y, base_learners_standard)
 
         preds = sl.predict_proba(X)
@@ -221,7 +221,7 @@ class TestMetaLearners:
                                            base_learners_standard):
         """Test that nnloglik weights sum to 1."""
         X, y = simple_classification_data
-        sl = ExtendedSuperLearner(method='nnloglik', folds=3,
+        sl = SuperLearner(method='nnloglik', cv=3,
                                  normalize_weights=True, random_state=42)
         sl.fit_explicit(X, y, base_learners_standard)
 
@@ -279,7 +279,7 @@ class TestMissingData:
         for i in range(X.shape[1]):
             X_imputed[np.isnan(X[:, i]), i] = col_means[i]
 
-        sl = ExtendedSuperLearner(method='nnloglik', folds=3, random_state=42)
+        sl = SuperLearner(method='nnloglik', cv=3, random_state=42)
         sl.fit_explicit(X_imputed, y, base_learners_standard)
 
         preds = sl.predict_proba(X_imputed)
@@ -291,7 +291,7 @@ class TestMissingData:
         """Test that missing data without imputation is tracked."""
         X, y = data_with_missing
 
-        sl = ExtendedSuperLearner(method='nnloglik', folds=3,
+        sl = SuperLearner(method='nnloglik', cv=3,
                                  track_errors=True, random_state=42)
 
         # This should raise errors for most sklearn learners
@@ -319,7 +319,7 @@ class TestConvergenceIssues:
         """Test handling of perfect separation."""
         X, y = perfect_separation_data
 
-        sl = ExtendedSuperLearner(method='nnloglik', folds=3,
+        sl = SuperLearner(method='nnloglik', cv=3,
                                  track_errors=True, random_state=42)
 
         with warnings.catch_warnings():
@@ -336,7 +336,7 @@ class TestConvergenceIssues:
         """Test with low variability causing convergence issues."""
         X, y = low_variability_data
 
-        sl = ExtendedSuperLearner(method='nnloglik', folds=3,
+        sl = SuperLearner(method='nnloglik', cv=3,
                                  track_errors=True, random_state=42)
 
         with warnings.catch_warnings():
@@ -362,7 +362,7 @@ class TestConvergenceIssues:
             ('logistic', LogisticRegression(max_iter=2, random_state=42)),  # Will not converge
         ]
 
-        sl = ExtendedSuperLearner(method='nnloglik', folds=3,
+        sl = SuperLearner(method='nnloglik', cv=3,
                                  track_errors=True, random_state=42)
 
         with warnings.catch_warnings(record=True) as w:
@@ -387,7 +387,7 @@ class TestCollinearity:
         """Test SuperLearner with highly collinear features."""
         X, y = highly_collinear_data
 
-        sl = ExtendedSuperLearner(method='nnloglik', folds=3, random_state=42)
+        sl = SuperLearner(method='nnloglik', cv=3, random_state=42)
         sl.fit_explicit(X, y, base_learners_standard)
 
         preds = sl.predict_proba(X)
@@ -410,7 +410,7 @@ class TestCollinearity:
                                                max_iter=1000, random_state=42)),
         ]
 
-        sl = ExtendedSuperLearner(method='nnloglik', folds=3, random_state=42)
+        sl = SuperLearner(method='nnloglik', cv=3, random_state=42)
         sl.fit_explicit(X, y, learners)
 
         preds = sl.predict_proba(X)
@@ -429,7 +429,7 @@ class TestMixedVariables:
         """Test with continuous, binary, and categorical variables."""
         X, y = mixed_variable_data
 
-        sl = ExtendedSuperLearner(method='nnloglik', folds=3, random_state=42)
+        sl = SuperLearner(method='nnloglik', cv=3, random_state=42)
         sl.fit_explicit(X, y, base_learners_standard)
 
         preds = sl.predict_proba(X)
@@ -446,7 +446,7 @@ class TestMixedVariables:
             ('tree', DecisionTreeClassifier(max_depth=5, random_state=42)),
         ]
 
-        sl = ExtendedSuperLearner(method='nnloglik', folds=3, random_state=42)
+        sl = SuperLearner(method='nnloglik', cv=3, random_state=42)
         sl.fit_explicit(X, y, learners)
 
         preds = sl.predict_proba(X)
@@ -493,7 +493,7 @@ class TestFoldSpecificFailures:
             ('failing', FailingLearner(fail_on_size=50)),  # May fail on small folds
         ]
 
-        sl = ExtendedSuperLearner(method='nnloglik', folds=5,
+        sl = SuperLearner(method='nnloglik', cv=5,
                                  track_errors=True, random_state=42)
 
         with warnings.catch_warnings():
@@ -536,7 +536,7 @@ class TestFoldSpecificFailures:
             ('always_fail', AlwaysFailingLearner()),
         ]
 
-        sl = ExtendedSuperLearner(method='nnloglik', folds=3,
+        sl = SuperLearner(method='nnloglik', cv=3,
                                  track_errors=True, random_state=42)
 
         # New behavior: fit succeeds with warning
@@ -576,7 +576,7 @@ class TestExternalCVEdgeCases:
         """Test external CV with imbalanced data."""
         X, y = imbalanced_data
 
-        sl = ExtendedSuperLearner(method='nnloglik', folds=3, random_state=42)
+        sl = SuperLearner(method='nnloglik', cv=3, random_state=42)
         results = evaluate_super_learner_cv(
             X, y, base_learners_with_intercept, sl,
             outer_folds=3, random_state=42
@@ -598,7 +598,7 @@ class TestExternalCVEdgeCases:
         """Test external CV returns predictions correctly."""
         X, y = simple_classification_data
 
-        sl = ExtendedSuperLearner(method='nnloglik', folds=3, random_state=42)
+        sl = SuperLearner(method='nnloglik', cv=3, random_state=42)
         results, predictions = evaluate_super_learner_cv(
             X, y, base_learners_standard, sl,
             outer_folds=3, random_state=42,
@@ -624,7 +624,7 @@ class TestExternalCVEdgeCases:
         sample_weight = np.ones(len(y))
         sample_weight[y == 1] = 2.0
 
-        sl = ExtendedSuperLearner(method='nnloglik', folds=3, random_state=42)
+        sl = SuperLearner(method='nnloglik', cv=3, random_state=42)
         results = evaluate_super_learner_cv(
             X, y, base_learners_standard, sl,
             outer_folds=3, random_state=42,
@@ -639,7 +639,7 @@ class TestExternalCVEdgeCases:
         """Test external CV works with all meta-learning methods."""
         X, y = simple_classification_data
 
-        sl = ExtendedSuperLearner(method=method, folds=3, random_state=42)
+        sl = SuperLearner(method=method, cv=3, random_state=42)
         results = evaluate_super_learner_cv(
             X, y, base_learners_standard, sl,
             outer_folds=3, random_state=42
@@ -659,7 +659,7 @@ class TestErrorHandling:
 
     def test_error_tracker_initialization(self):
         """Test ErrorTracker initializes correctly."""
-        sl = ExtendedSuperLearner(track_errors=True)
+        sl = SuperLearner(track_errors=True)
         assert sl.error_tracker is not None
         assert len(sl.error_tracker.error_records) == 0
 
@@ -670,7 +670,7 @@ class TestErrorHandling:
             ('rf', RandomForestClassifier(n_estimators=10, random_state=42)),
         ]
 
-        sl = ExtendedSuperLearner(track_errors=False)
+        sl = SuperLearner(track_errors=False)
         assert sl.error_tracker is None
 
         sl.fit_explicit(X, y, learners)
@@ -695,7 +695,7 @@ class TestErrorHandling:
             ('failing', FailingLearner()),
         ]
 
-        sl = ExtendedSuperLearner(method='nnloglik', folds=3,
+        sl = SuperLearner(method='nnloglik', cv=3,
                                  track_errors=True, random_state=42)
 
         # New behavior: fit succeeds with warning
@@ -735,9 +735,9 @@ class TestErrorHandling:
             ('failing', AlwaysFailingLearner()),
         ]
 
-        sl = ExtendedSuperLearner(
+        sl = SuperLearner(
             method='nnloglik',
-            folds=3,
+            cv=3,
             track_errors=True,
             random_state=42,
             min_viable_learners=2  # Require at least 2 learners to succeed
@@ -764,9 +764,9 @@ class TestErrorHandling:
             ('failing', AlwaysFailingLearner()),
         ]
 
-        sl = ExtendedSuperLearner(
+        sl = SuperLearner(
             method='nnloglik',
-            folds=3,
+            cv=3,
             track_errors=True,
             random_state=42,
             min_viable_learners=2  # Require at least 2 learners
@@ -798,7 +798,7 @@ class TestPredictionEdgeCases:
         """Test predictions on different number of samples."""
         X_train, y_train = simple_classification_data
 
-        sl = ExtendedSuperLearner(method='nnloglik', folds=3, random_state=42)
+        sl = SuperLearner(method='nnloglik', cv=3, random_state=42)
         sl.fit_explicit(X_train, y_train, base_learners_standard)
 
         # Predict on subset
@@ -816,7 +816,7 @@ class TestPredictionEdgeCases:
         """Test predict returns binary class labels."""
         X, y = simple_classification_data
 
-        sl = ExtendedSuperLearner(method='nnloglik', folds=3, random_state=42)
+        sl = SuperLearner(method='nnloglik', cv=3, random_state=42)
         sl.fit_explicit(X, y, base_learners_standard)
 
         preds = sl.predict(X)
@@ -829,7 +829,7 @@ class TestPredictionEdgeCases:
         X, y = simple_classification_data
 
         trim_value = 0.05
-        sl = ExtendedSuperLearner(method='nnloglik', folds=3,
+        sl = SuperLearner(method='nnloglik', cv=3,
                                  trim=trim_value, random_state=42)
         sl.fit_explicit(X, y, base_learners_standard)
 
@@ -856,7 +856,7 @@ class TestIntegration:
         methods = ['nnloglik', 'auc', 'nnls', 'logistic']
 
         for method in methods:
-            sl = ExtendedSuperLearner(method=method, folds=3, random_state=42)
+            sl = SuperLearner(method=method, cv=3, random_state=42)
             sl.fit_explicit(X, y, base_learners_standard)
 
             # Test predictions
@@ -877,11 +877,11 @@ class TestIntegration:
         """Test that results are reproducible with same random state."""
         X, y = simple_classification_data
 
-        sl1 = ExtendedSuperLearner(method='nnloglik', folds=3, random_state=42)
+        sl1 = SuperLearner(method='nnloglik', cv=3, random_state=42)
         sl1.fit_explicit(X, y, base_learners_standard)
         preds1 = sl1.predict_proba(X)
 
-        sl2 = ExtendedSuperLearner(method='nnloglik', folds=3, random_state=42)
+        sl2 = SuperLearner(method='nnloglik', cv=3, random_state=42)
         sl2.fit_explicit(X, y, base_learners_standard)
         preds2 = sl2.predict_proba(X)
 
@@ -893,7 +893,7 @@ class TestIntegration:
         X, y = simple_classification_data
 
         for n_folds in [3, 5, 10]:
-            sl = ExtendedSuperLearner(method='nnloglik', folds=n_folds,
+            sl = SuperLearner(method='nnloglik', cv=n_folds,
                                      random_state=42)
             sl.fit_explicit(X, y, base_learners_standard)
 

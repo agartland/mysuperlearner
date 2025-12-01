@@ -191,7 +191,7 @@ from sklearn.impute import SimpleImputer
 from sklearn.base import BaseEstimator, ClassifierMixin
 
 # Import mysuperlearner
-from mysuperlearner import ExtendedSuperLearner
+from mysuperlearner import SuperLearner
 from mysuperlearner.meta_learners import InterceptOnlyEstimator
 from mysuperlearner.evaluation import evaluate_super_learner_cv
 from mysuperlearner.error_handling import ErrorType
@@ -237,9 +237,9 @@ print("SCENARIO 1: Learner Fails During Final Refit")
 print("="*70)
 
 # Fit with error tracking
-sl = ExtendedSuperLearner(
+sl = SuperLearner(
     method='nnloglik',
-    folds=3,
+    cv=3,
     track_errors=True,
     verbose=True,
     random_state=42
@@ -248,7 +248,7 @@ sl = ExtendedSuperLearner(
 # Capture warnings
 with warnings.catch_warnings(record=True) as w:
     warnings.simplefilter("always")
-    sl.fit_explicit(X, y, learners)
+    sl.fit(X, y)
 
     print("\nWarnings captured:")
     for warning in w:
@@ -329,9 +329,9 @@ learners_imb = [
     ('logistic', LogisticRegression(class_weight='balanced', max_iter=1000, random_state=42)),
 ]
 
-sl_imb = ExtendedSuperLearner(
+sl_imb = SuperLearner(
     method='nnloglik',
-    folds=3,
+    cv=3,
     track_errors=True,
     random_state=42
 )
@@ -410,9 +410,9 @@ learners_miss = [
     ('logistic', LogisticRegression(max_iter=1000, random_state=42)),
 ]
 
-sl_miss = ExtendedSuperLearner(
+sl_miss = SuperLearner(
     method='nnloglik',
-    folds=3,
+    cv=3,
     track_errors=True,
     random_state=42
 )
@@ -464,9 +464,9 @@ learners_conv = [
     ('logistic_low_iter', LogisticRegression(max_iter=2, random_state=42)),  # Too low!
 ]
 
-sl_conv = ExtendedSuperLearner(
+sl_conv = SuperLearner(
     method='nnloglik',
-    folds=3,
+    cv=3,
     track_errors=True,
     random_state=42
 )
@@ -541,9 +541,9 @@ learners_5a = [
     ('failing', FailingLearner()),
 ]
 
-sl_5a = ExtendedSuperLearner(
+sl_5a = SuperLearner(
     method='nnloglik',
-    folds=3,
+    cv=3,
     track_errors=True,
     random_state=42,
     min_viable_learners=2  # Require 2, but only 1 will succeed
@@ -568,9 +568,9 @@ learners_5b = [
     ('failing', FailingLearner()),
 ]
 
-sl_5b = ExtendedSuperLearner(
+sl_5b = SuperLearner(
     method='nnloglik',
-    folds=3,
+    cv=3,
     track_errors=True,
     random_state=42,
     min_viable_learners=2  # Require 2, and 2 will succeed
@@ -626,14 +626,14 @@ learners_cv = [
     ('logistic', LogisticRegression(max_iter=1000, random_state=42)),
 ]
 
-sl_cv = ExtendedSuperLearner(method='nnloglik', folds=3, random_state=42)
+sl_cv = SuperLearner(learners=learners, method='nnloglik', cv=3, random_state=42)
 
 print("\nRunning external 5-fold CV...")
 results_cv = evaluate_super_learner_cv(
     X_cv, y_cv,
     learners_cv,
     sl_cv,
-    outer_folds=5,
+    outer_cv=5,
     random_state=42
 )
 
@@ -698,9 +698,9 @@ learners_pred = [
 ]
 
 # Note: PredictionFailingLearner succeeds in fit but fails in prediction
-sl_pred = ExtendedSuperLearner(
+sl_pred = SuperLearner(
     method='nnloglik',
-    folds=3,
+    cv=3,
     track_errors=True,
     verbose=True,  # Enable verbose to see prediction warnings
     random_state=42
