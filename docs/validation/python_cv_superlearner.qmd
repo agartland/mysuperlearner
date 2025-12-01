@@ -67,7 +67,7 @@ learners = [
     ('SL.glm', LogisticRegression(max_iter=1000, random_state=1)),
     ('SL.randomForest', RandomForestClassifier(n_estimators=100, max_depth=None, random_state=1)),
     ('SL.gbm', GradientBoostingClassifier(n_estimators=100, random_state=1)),
-    ('SL.svm', SVC(probability=True, kernel='radial', random_state=1))
+    ('SL.svm', SVC(probability=True, kernel='rbf', random_state=1))
 ]
 
 print("Base learners:")
