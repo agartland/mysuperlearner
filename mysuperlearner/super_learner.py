@@ -138,7 +138,7 @@ class SuperLearner(BaseEstimator, ClassifierMixin):
         learners: list of (name, estimator) tuples.
         cv: int or CV splitter object
         groups: array-like, optional. Group labels for GroupKFold, etc.
-        Returns Z, list_of_cv_preds (list of arrays per learner), fold_indices
+        Returns Z, list_of_cv_preds (list of arrays per learner), fold_indices, cv_risks
         """
         if cv is None:
             cv = self.cv
@@ -187,7 +187,18 @@ class SuperLearner(BaseEstimator, ClassifierMixin):
 
         # Clip/trimming
         Z = np.clip(Z, self.trim, 1.0 - self.trim)
-        return Z, cv_preds, fold_indices
+
+        # Compute CV risk for each learner (mean squared error on CV predictions)
+        # This matches R's cvRisk calculation
+        cv_risks = np.zeros(K)
+        for j in range(K):
+            valid_mask = ~np.isnan(Z[:, j])
+            if valid_mask.sum() > 0:
+                cv_risks[j] = mean_squared_error(y_arr[valid_mask], Z[valid_mask, j])
+            else:
+                cv_risks[j] = np.inf
+
+        return Z, cv_preds, fold_indices, cv_risks
 
     def fit(self, X, y, sample_weight=None, store_X=False, groups=None):
         """Fit Super Learner ensemble.
@@ -241,12 +252,13 @@ class SuperLearner(BaseEstimator, ClassifierMixin):
         self.y_ = y_arr  # Store for diagnostics
 
         # Build level-1 matrix
-        Z, cv_preds, fold_indices = self._build_level1(X_arr, y_arr, base_learners,
+        Z, cv_preds, fold_indices, cv_risks = self._build_level1(X_arr, y_arr, base_learners,
                                                        cv=self.cv, random_state=self.random_state,
                                                        sample_weight=sample_weight, groups=groups)
         self.Z_ = Z
         self.cv_predictions_ = cv_preds
         self.fold_indices_ = fold_indices
+        self.cv_risks_ = cv_risks
         self.base_learner_names_ = [n for n, _ in base_learners]
 
         # Select meta learner

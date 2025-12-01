@@ -26,7 +26,7 @@ class SuperLearnerCVResults:
         Per-fold metrics for each learner. Contains columns:
         - 'fold': fold number
         - 'learner': learner name
-        - 'learner_type': 'super' for SuperLearner, 'base' for base learners
+        - 'learner_type': 'super' for SuperLearner, 'base' for base learners, 'discrete' for discrete SL
         - metric columns (e.g., 'auc', 'accuracy', 'logloss')
     predictions : dict, optional
         Dictionary of predictions (only if return_predictions=True).
@@ -37,6 +37,18 @@ class SuperLearnerCVResults:
         - '<learner_name>': predicted probabilities for each learner
     config : dict, optional
         Configuration used for cross-validation (outer_folds, method, etc.)
+    coef : pd.DataFrame, optional
+        Meta-learner coefficients per fold. Contains columns:
+        - 'fold': fold number
+        - 'learner': learner name
+        - 'coefficient': meta-learner weight
+    cv_risk : pd.DataFrame, optional
+        Inner CV risk for each base learner per fold. Contains columns:
+        - 'fold': fold number
+        - 'learner': learner name
+        - 'cv_risk': cross-validation risk (MSE)
+    which_discrete_sl : list, optional
+        List of selected discrete SuperLearner (best base learner) per fold
 
     Examples
     --------
@@ -53,6 +65,9 @@ class SuperLearnerCVResults:
     metrics: pd.DataFrame
     predictions: Optional[Dict[str, np.ndarray]] = None
     config: Optional[Dict] = None
+    coef: Optional[pd.DataFrame] = None
+    cv_risk: Optional[pd.DataFrame] = None
+    which_discrete_sl: Optional[list] = None
 
     def summary(self, metrics: Optional[list] = None) -> pd.DataFrame:
         """

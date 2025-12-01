@@ -119,11 +119,30 @@ def evaluate_super_learner_cv(
         local_rows = []
         local_predictions = {} if return_predictions else None
 
+        # Extract coefficients and cv_risks from fitted SuperLearner
+        fold_coef = getattr(sl, 'meta_weights_', None)
+        fold_cv_risks = getattr(sl, 'cv_risks_', None)
+
+        # Determine discrete SuperLearner (best base learner by CV risk)
+        discrete_sl_name = None
+        discrete_sl_p = None
+        if fold_cv_risks is not None and len(fold_cv_risks) > 0:
+            # Find learner with minimum CV risk
+            best_idx = np.argmin(fold_cv_risks)
+            discrete_sl_name = sl.base_learner_names_[best_idx]
+            # Get predictions from that learner
+            try:
+                discrete_sl_p = _get_proba_fallback(sl.base_learners_full_[best_idx][1], X_te)
+            except Exception:
+                discrete_sl_p = np.zeros_like(y_te, dtype=float)
+
         # Store predictions if requested
         if return_predictions:
             local_predictions['y_true'] = y_te
             local_predictions['test_idx'] = test_idx
             local_predictions['SuperLearner'] = sl_p
+            if discrete_sl_p is not None:
+                local_predictions['DiscreteSL'] = discrete_sl_p
 
         # record SL metrics
         row = {"fold": int(fold_idx), "learner": "SuperLearner", "learner_type": "super"}
@@ -133,6 +152,16 @@ def evaluate_super_learner_cv(
             except Exception:
                 row[mname] = np.nan
         local_rows.append(row)
+
+        # Add discrete SL metrics
+        if discrete_sl_p is not None:
+            row = {"fold": int(fold_idx), "learner": "DiscreteSL", "learner_type": "discrete"}
+            for mname, mfun in metrics.items():
+                try:
+                    row[mname] = mfun(y_te, discrete_sl_p)
+                except Exception:
+                    row[mname] = np.nan
+            local_rows.append(row)
 
         # Evaluate each base learner (they were refit on full training data by fit)
         for name, mdl in sl.base_learners_full_:
@@ -153,9 +182,9 @@ def evaluate_super_learner_cv(
             local_rows.append(row)
 
         if return_predictions:
-            return local_rows, local_predictions
+            return local_rows, local_predictions, fold_coef, fold_cv_risks, discrete_sl_name
         else:
-            return local_rows
+            return local_rows, fold_coef, fold_cv_risks, discrete_sl_name
 
     # Prepare fold inputs
     fold_inputs = []
@@ -172,15 +201,25 @@ def evaluate_super_learner_cv(
 
     # Process results
     if return_predictions or return_object:
-        # Separate metrics and predictions
+        # Separate metrics, predictions, coefficients, cv_risks, and discrete SL info
         rows = []
         all_predictions_list = []
+        all_coefs = []
+        all_cv_risks = []
+        discrete_sl_selections = []
+
         for result in results:
             if return_predictions or return_object:
                 rows.extend(result[0])
                 all_predictions_list.append(result[1])
+                all_coefs.append(result[2])
+                all_cv_risks.append(result[3])
+                discrete_sl_selections.append(result[4])
             else:
-                rows.extend(result)
+                rows.extend(result[0])
+                all_coefs.append(result[1])
+                all_cv_risks.append(result[2])
+                discrete_sl_selections.append(result[3])
 
         # Aggregate predictions across folds
         all_predictions = {'y_true': [], 'fold_id': [], 'test_indices': []}
@@ -208,6 +247,38 @@ def evaluate_super_learner_cv(
 
         results_df = pd.DataFrame(rows)
 
+        # Build coefficient dataframe
+        coef_df = None
+        if all_coefs and all_coefs[0] is not None:
+            coef_data = []
+            learner_names_coef = [n for n, _ in base_learners]
+            for fold_idx, coef in enumerate(all_coefs):
+                if coef is not None:
+                    for learner_name, weight in zip(learner_names_coef, coef):
+                        coef_data.append({
+                            'fold': fold_idx + 1,
+                            'learner': learner_name,
+                            'coefficient': weight
+                        })
+            if coef_data:
+                coef_df = pd.DataFrame(coef_data)
+
+        # Build CV risk dataframe
+        cv_risk_df = None
+        if all_cv_risks and all_cv_risks[0] is not None:
+            cv_risk_data = []
+            learner_names_risk = [n for n, _ in base_learners]
+            for fold_idx, risks in enumerate(all_cv_risks):
+                if risks is not None:
+                    for learner_name, risk in zip(learner_names_risk, risks):
+                        cv_risk_data.append({
+                            'fold': fold_idx + 1,
+                            'learner': learner_name,
+                            'cv_risk': risk
+                        })
+            if cv_risk_data:
+                cv_risk_df = pd.DataFrame(cv_risk_data)
+
         # Return appropriate format
         if return_object:
             from .results import SuperLearnerCVResults
@@ -220,13 +291,24 @@ def evaluate_super_learner_cv(
             return SuperLearnerCVResults(
                 metrics=results_df,
                 predictions=all_predictions if return_predictions else None,
-                config=config
+                config=config,
+                coef=coef_df,
+                cv_risk=cv_risk_df,
+                which_discrete_sl=discrete_sl_selections
             )
         else:
             return results_df, all_predictions
     else:
         # flatten results
-        rows = [r for fold_res in results for r in fold_res]
+        rows = []
+        all_coefs = []
+        all_cv_risks = []
+        discrete_sl_selections = []
+        for result in results:
+            rows.extend(result[0])
+            all_coefs.append(result[1])
+            all_cv_risks.append(result[2])
+            discrete_sl_selections.append(result[3])
         return pd.DataFrame(rows)
 
 
