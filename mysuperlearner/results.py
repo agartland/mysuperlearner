@@ -49,6 +49,13 @@ class SuperLearnerCVResults:
         - 'cv_risk': cross-validation risk (MSE)
     which_discrete_sl : list, optional
         List of selected discrete SuperLearner (best base learner) per fold
+    timing : pd.DataFrame, optional
+        Timing information for learner fitting (only if verbose=True). Contains columns:
+        - 'outer_fold': outer fold number
+        - 'learner': learner name
+        - 'inner_fold': inner fold index
+        - 'fit_time': time to fit in seconds
+        - 'error': error message if fit failed (None otherwise)
 
     Examples
     --------
@@ -68,6 +75,7 @@ class SuperLearnerCVResults:
     coef: Optional[pd.DataFrame] = None
     cv_risk: Optional[pd.DataFrame] = None
     which_discrete_sl: Optional[list] = None
+    timing: Optional[pd.DataFrame] = None
 
     def summary(self, metrics: Optional[list] = None) -> pd.DataFrame:
         """
@@ -303,6 +311,85 @@ class SuperLearnerCVResults:
         """
         from .visualization import plot_learner_comparison
         return plot_learner_comparison(self.metrics, metrics=metrics, **kwargs)
+
+    def get_timing_summary(self) -> pd.DataFrame:
+        """
+        Return summary of learner timings.
+
+        Returns
+        -------
+        summary : pd.DataFrame
+            Aggregated timing statistics per learner. Contains columns:
+            - 'n_fits': number of fits
+            - 'total_time': total time across all fits (seconds)
+            - 'mean_time': mean time per fit (seconds)
+            - 'std_time': standard deviation of fit times
+            - 'min_time': minimum fit time
+            - 'max_time': maximum fit time
+
+        Raises
+        ------
+        ValueError
+            If timing data not available (verbose=False during fit)
+
+        Examples
+        --------
+        >>> results = evaluate_super_learner_cv(X, y, learners, sl,
+        ...                                      verbose=True, return_object=True)
+        >>> timing_summary = results.get_timing_summary()
+        >>> print(timing_summary.sort_values('total_time', ascending=False))
+        """
+        if self.timing is None:
+            raise ValueError("Timing data not available. Set verbose=True during fit.")
+
+        summary = self.timing.groupby('learner')['fit_time'].agg([
+            'count', 'sum', 'mean', 'std', 'min', 'max'
+        ])
+        summary.columns = ['n_fits', 'total_time', 'mean_time', 'std_time', 'min_time', 'max_time']
+        summary = summary.sort_values('total_time', ascending=False)
+        return summary
+
+    def plot_timing(self, **kwargs) -> Tuple[plt.Figure, plt.Axes]:
+        """
+        Create visualization of learner timings.
+
+        Parameters
+        ----------
+        **kwargs
+            Additional keyword arguments passed to matplotlib plotting functions
+
+        Returns
+        -------
+        fig : matplotlib.figure.Figure
+            The figure object
+        ax : matplotlib.axes.Axes
+            The axes object
+
+        Raises
+        ------
+        ValueError
+            If timing data not available (verbose=False during fit)
+
+        Examples
+        --------
+        >>> results = evaluate_super_learner_cv(X, y, learners, sl,
+        ...                                      verbose=True, return_object=True)
+        >>> fig, ax = results.plot_timing()
+        >>> plt.show()
+        """
+        if self.timing is None:
+            raise ValueError("Timing data not available. Set verbose=True during fit.")
+
+        summary = self.get_timing_summary()
+
+        fig, ax = plt.subplots(figsize=kwargs.pop('figsize', (10, 6)))
+        summary['total_time'].plot(kind='barh', ax=ax, **kwargs)
+        ax.set_xlabel('Total Time (seconds)')
+        ax.set_ylabel('Learner')
+        ax.set_title('Learner Timing Summary')
+        plt.tight_layout()
+
+        return fig, ax
 
     def __repr__(self):
         n_folds = self.metrics['fold'].nunique() if 'fold' in self.metrics.columns else 0

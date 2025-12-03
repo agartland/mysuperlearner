@@ -138,8 +138,10 @@ class SuperLearner(BaseEstimator, ClassifierMixin):
         learners: list of (name, estimator) tuples.
         cv: int or CV splitter object
         groups: array-like, optional. Group labels for GroupKFold, etc.
-        Returns Z, list_of_cv_preds (list of arrays per learner), fold_indices, cv_risks
+        Returns Z, list_of_cv_preds (list of arrays per learner), fold_indices, cv_risks, learner_timings
         """
+        import time
+
         if cv is None:
             cv = self.cv
 
@@ -156,8 +158,9 @@ class SuperLearner(BaseEstimator, ClassifierMixin):
         Z = np.zeros((n_samples, K), dtype=float)
         cv_preds = [np.zeros(n_samples, dtype=float) for _ in range(K)]
         fold_indices = []
+        learner_timings = []  # New: collect timing data
 
-        for train_idx, test_idx in cv_splitter.split(X_arr, y_arr, groups):
+        for inner_fold_idx, (train_idx, test_idx) in enumerate(cv_splitter.split(X_arr, y_arr, groups)):
             fold_indices.append((train_idx, test_idx))
             X_tr, X_te = X_arr[train_idx], X_arr[test_idx]
             y_tr = y_arr[train_idx]
@@ -166,6 +169,7 @@ class SuperLearner(BaseEstimator, ClassifierMixin):
                 sw_tr = np.asarray(sample_weight)[train_idx]
 
             for j, (name, estimator) in enumerate(learners):
+                start_time = time.time()  # New: start timing
                 try:
                     mdl = clone(estimator)
                     # fit with sample_weight when supported
@@ -177,7 +181,30 @@ class SuperLearner(BaseEstimator, ClassifierMixin):
                     except TypeError:
                         mdl.fit(X_tr, y_tr)
                     preds = self._get_proba(mdl, X_te)
+                    fit_time = time.time() - start_time  # New: capture time
+
+                    # New: record timing
+                    learner_timings.append({
+                        'learner_name': name,
+                        'inner_fold_idx': inner_fold_idx,
+                        'fit_time': fit_time,
+                        'timestamp': time.time()
+                    })
+
+                    # New: display per-learner update if verbose
+                    if self.verbose:
+                        print(f"  [{name}] completed inner fold {inner_fold_idx + 1} in {fit_time:.2f}s")
+
                 except Exception as e:
+                    fit_time = time.time() - start_time  # New: capture time even on error
+                    # New: record timing with error flag
+                    learner_timings.append({
+                        'learner_name': name,
+                        'inner_fold_idx': inner_fold_idx,
+                        'fit_time': fit_time,
+                        'timestamp': time.time(),
+                        'error': str(e)
+                    })
                     # register error and fill with nan
                     if self.error_tracker is not None:
                         self.error_tracker.add_error(name, ErrorType.FITTING, str(e), fold=None, phase='cv')
@@ -198,7 +225,7 @@ class SuperLearner(BaseEstimator, ClassifierMixin):
             else:
                 cv_risks[j] = np.inf
 
-        return Z, cv_preds, fold_indices, cv_risks
+        return Z, cv_preds, fold_indices, cv_risks, learner_timings
 
     def fit(self, X, y, sample_weight=None, store_X=False, groups=None):
         """Fit Super Learner ensemble.
@@ -252,13 +279,14 @@ class SuperLearner(BaseEstimator, ClassifierMixin):
         self.y_ = y_arr  # Store for diagnostics
 
         # Build level-1 matrix
-        Z, cv_preds, fold_indices, cv_risks = self._build_level1(X_arr, y_arr, base_learners,
+        Z, cv_preds, fold_indices, cv_risks, learner_timings = self._build_level1(X_arr, y_arr, base_learners,
                                                        cv=self.cv, random_state=self.random_state,
                                                        sample_weight=sample_weight, groups=groups)
         self.Z_ = Z
         self.cv_predictions_ = cv_preds
         self.fold_indices_ = fold_indices
         self.cv_risks_ = cv_risks
+        self.learner_timings_ = learner_timings  # New: store timing data
         self.base_learner_names_ = [n for n, _ in base_learners]
 
         # Select meta learner

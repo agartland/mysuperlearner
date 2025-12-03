@@ -91,6 +91,9 @@ def evaluate_super_learner_cv(
 
     X_arr, y_arr = check_X_y(X, y)
 
+    # Get verbose setting from super_learner
+    verbose = getattr(super_learner, 'verbose', False)
+
     # Handle both int and CV splitter objects for outer CV
     if isinstance(outer_folds, int):
         cv_splitter = StratifiedKFold(n_splits=outer_folds, shuffle=True, random_state=random_state)
@@ -100,6 +103,9 @@ def evaluate_super_learner_cv(
 
     def _run_fold(fold_idx, train_idx, test_idx):
         """Work for a single outer fold: fit SL on train, evaluate on test, return rows."""
+        import time
+        fold_start_time = time.time()  # New: track fold timing
+
         X_tr, X_te = X_arr[train_idx], X_arr[test_idx]
         y_tr, y_te = y_arr[train_idx], y_arr[test_idx]
         sw_tr = None
@@ -181,10 +187,21 @@ def evaluate_super_learner_cv(
                     row[mname] = np.nan
             local_rows.append(row)
 
+        # New: Create fold timing summary
+        learner_timings = getattr(sl, 'learner_timings_', [])
+        fold_total_time = time.time() - fold_start_time
+        fold_timing_summary = {
+            'outer_fold': fold_idx,
+            'learner_timings': learner_timings,
+            'total_time': fold_total_time,
+            'start_time': fold_start_time,
+            'end_time': time.time()
+        }
+
         if return_predictions:
-            return local_rows, local_predictions, fold_coef, fold_cv_risks, discrete_sl_name
+            return local_rows, local_predictions, fold_coef, fold_cv_risks, discrete_sl_name, fold_timing_summary
         else:
-            return local_rows, fold_coef, fold_cv_risks, discrete_sl_name
+            return local_rows, fold_coef, fold_cv_risks, discrete_sl_name, fold_timing_summary
 
     # Prepare fold inputs
     fold_inputs = []
@@ -193,20 +210,58 @@ def evaluate_super_learner_cv(
         fold_num += 1
         fold_inputs.append((fold_num, train_idx, test_idx))
 
+    # New: Initialize progress tracking
+    if verbose:
+        import time
+        from .progress import print_progress_header, print_learner_summary, print_overall_progress, print_final_summary
+        n_learners = len(base_learners)
+        n_outer_folds = len(fold_inputs)
+        print_progress_header(n_outer_folds, n_learners)
+        cv_start_time = time.time()
+
     # Run folds either in parallel or sequentially
     if n_jobs is None or n_jobs == 1:
-        results = [ _run_fold(fi[0], fi[1], fi[2]) for fi in fold_inputs ]
+        # Sequential mode - display progress in real-time
+        results = []
+        fold_summaries = []
+        for fi in fold_inputs:
+            if verbose:
+                print(f"\nFitting fold {fi[0]}/{len(fold_inputs)}...")
+            result = _run_fold(fi[0], fi[1], fi[2])
+            results.append(result)
+
+            if verbose:
+                # Extract timing summary (last element of result tuple)
+                fold_timing = result[-1]
+                fold_summaries.append(fold_timing)
+
+                # Display per-fold summary
+                print_learner_summary(fold_timing['learner_timings'], fold_timing['outer_fold'] - 1)
+                print_overall_progress(
+                    len(fold_summaries), len(fold_inputs),
+                    cv_start_time, fold_summaries
+                )
     else:
+        # Parallel mode - collect all results, then display
+        if verbose:
+            print(f"\nRunning {len(fold_inputs)} folds in parallel with {n_jobs} workers...")
         results = Parallel(n_jobs=n_jobs)(delayed(_run_fold)(fi[0], fi[1], fi[2]) for fi in fold_inputs)
+
+        if verbose:
+            # Extract and display timing after parallel execution completes
+            fold_summaries = [result[-1] for result in results]
+            total_time = time.time() - cv_start_time
+            print_final_summary(fold_summaries, total_time)
 
     # Process results
     if return_predictions or return_object:
-        # Separate metrics, predictions, coefficients, cv_risks, and discrete SL info
+        # Separate metrics, predictions, coefficients, cv_risks, discrete SL info, and timing
         rows = []
         all_predictions_list = []
         all_coefs = []
         all_cv_risks = []
         discrete_sl_selections = []
+        timing_summaries = []  # New
 
         for result in results:
             if return_predictions or return_object:
@@ -215,11 +270,13 @@ def evaluate_super_learner_cv(
                 all_coefs.append(result[2])
                 all_cv_risks.append(result[3])
                 discrete_sl_selections.append(result[4])
+                timing_summaries.append(result[5])  # New
             else:
                 rows.extend(result[0])
                 all_coefs.append(result[1])
                 all_cv_risks.append(result[2])
                 discrete_sl_selections.append(result[3])
+                timing_summaries.append(result[4])  # New
 
         # Aggregate predictions across folds
         all_predictions = {'y_true': [], 'fold_id': [], 'test_indices': []}
@@ -279,6 +336,22 @@ def evaluate_super_learner_cv(
             if cv_risk_data:
                 cv_risk_df = pd.DataFrame(cv_risk_data)
 
+        # New: Build timing dataframe
+        timing_df = None
+        if timing_summaries:
+            timing_data = []
+            for fold_summary in timing_summaries:
+                for record in fold_summary['learner_timings']:
+                    timing_data.append({
+                        'outer_fold': fold_summary['outer_fold'],
+                        'learner': record['learner_name'],
+                        'inner_fold': record['inner_fold_idx'],
+                        'fit_time': record['fit_time'],
+                        'error': record.get('error', None)
+                    })
+            if timing_data:
+                timing_df = pd.DataFrame(timing_data)
+
         # Return appropriate format
         if return_object:
             from .results import SuperLearnerCVResults
@@ -294,7 +367,8 @@ def evaluate_super_learner_cv(
                 config=config,
                 coef=coef_df,
                 cv_risk=cv_risk_df,
-                which_discrete_sl=discrete_sl_selections
+                which_discrete_sl=discrete_sl_selections,
+                timing=timing_df  # New
             )
         else:
             return results_df, all_predictions

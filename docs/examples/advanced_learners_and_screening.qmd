@@ -1,0 +1,1051 @@
+---
+title: "Advanced Learners and Screening in MySuperLearner"
+author: "MySuperLearner Package"
+date: today
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    code-fold: false
+    theme: cosmo
+    fig-width: 10
+    fig-height: 6
+    self-contained: true
+    df-print: paged
+    grid:
+      sidebar-width: 0px
+      body-width: 2000px
+      margin-width: 0px
+      gutter-width: 1.5rem
+jupyter: python3
+---
+
+# Introduction
+
+This document demonstrates **advanced features** of the mysuperlearner package:
+
+1. **Learners with manual hyperparameters** - Fine-tune model behavior with explicit parameter settings
+2. **Learners with inner cross-validation** - Automated hyperparameter tuning using GridSearchCV and RandomizedSearchCV
+3. **Manual variable sets** - Domain knowledge-based feature selection
+4. **Automated screeners** - Data-driven feature selection using correlation and Lasso methods
+5. **Comprehensive ensembles** - Combining all approaches in a single SuperLearner
+
+These features enable you to:
+
+- Build richer learner libraries with diverse model configurations
+- Reduce dimensionality and improve performance on high-dimensional data
+- Combine domain knowledge (manual sets) with data-driven selection (screeners)
+- Compare screened vs. unscreened approaches systematically
+
+## When to Use These Features
+
+- **Manual Hyperparameters**: When you have prior knowledge about good parameter ranges for your problem
+- **Inner CV**: When you're uncertain about hyperparameters and want data-driven selection
+- **Variable Sets**: When domain experts can identify meaningful feature groups
+- **Screeners**: When you have high-dimensional data (p >> n) or many noisy features
+
+# Setup and Data Generation
+
+```{python}
+#| label: setup
+#| message: false
+#| warning: false
+
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+from sklearn.datasets import make_classification
+from sklearn.model_selection import train_test_split, GridSearchCV, RandomizedSearchCV
+from sklearn.metrics import roc_auc_score, accuracy_score
+from sklearn.pipeline import Pipeline
+
+# Base learners
+from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
+from sklearn.linear_model import LogisticRegression, RidgeClassifier
+from sklearn.svm import SVC
+from sklearn.tree import DecisionTreeClassifier
+
+# MySuperLearner components
+from mysuperlearner import SuperLearner, CVSuperLearner
+from mysuperlearner import VariableSet, CorrelationScreener, LassoScreener
+from mysuperlearner import InterceptOnlyEstimator
+
+# Set style
+sns.set_style("whitegrid")
+plt.rcParams['figure.figsize'] = (10, 6)
+np.random.seed(42)
+
+print("=" * 70)
+print("Advanced Learners and Screening")
+print("=" * 70)
+```
+
+## Generate High-Dimensional Dataset
+
+We'll create a dataset with 50 features where only 20 are informative. This 40% signal, 60% noise ratio is ideal for demonstrating the value of screening.
+
+```{python}
+#| label: data-generation
+
+# Generate high-dimensional data to demonstrate screening
+# 50 features total: 20 informative, 30 noise
+X, y = make_classification(
+    n_samples=800,
+    n_features=50,
+    n_informative=20,
+    n_redundant=10,
+    n_repeated=0,
+    n_clusters_per_class=2,
+    flip_y=0.05,
+    class_sep=0.8,
+    random_state=42
+)
+
+# Convert to DataFrame with named columns for VariableSet demonstration
+feature_names = [f'feature_{i:02d}' for i in range(50)]
+X_df = pd.DataFrame(X, columns=feature_names)
+
+X_train, X_test, y_train, y_test = train_test_split(
+    X_df, y, test_size=0.2, random_state=42
+)
+
+print(f"\nDataset Summary:")
+print("=" * 70)
+print(f"Training set: {X_train.shape[0]} samples")
+print(f"Test set: {X_test.shape[0]} samples")
+print(f"Features: {X_train.shape[1]}")
+print(f"Informative features: 20 (40%)")
+print(f"Noise features: 30 (60%)")
+print(f"Class balance: {np.mean(y):.2%} positive")
+```
+
+# Learners with Manual Hyperparameters
+
+Instead of using default parameters, we can manually configure hyperparameters based on:
+
+- Prior knowledge from similar problems
+- Understanding of model behavior
+- Computational constraints
+
+We'll create multiple variants of each learner type with different configurations.
+
+```{python}
+#| label: manual-hyperparameters
+
+# Logistic Regression: vary regularization strength and penalty type
+lr_learners = [
+    ('LR_L1_C10', LogisticRegression(penalty='l1', C=10.0, solver='saga', max_iter=1000, random_state=42)),
+    ('LR_L1_C1', LogisticRegression(penalty='l1', C=1.0, solver='saga', max_iter=1000, random_state=42)),
+    ('LR_L1_C01', LogisticRegression(penalty='l1', C=0.1, solver='saga', max_iter=1000, random_state=42)),
+    ('LR_L2_C10', LogisticRegression(penalty='l2', C=10.0, solver='lbfgs', max_iter=1000, random_state=42)),
+    ('LR_L2_C01', LogisticRegression(penalty='l2', C=0.1, solver='lbfgs', max_iter=1000, random_state=42)),
+]
+
+# Ridge Classifier: vary regularization strength
+ridge_learners = [
+    ('Ridge_a01', RidgeClassifier(alpha=0.1, random_state=42)),
+    ('Ridge_a1', RidgeClassifier(alpha=1.0, random_state=42)),
+    ('Ridge_a10', RidgeClassifier(alpha=10.0, random_state=42)),
+]
+
+# Random Forest: vary tree depth and ensemble size
+rf_learners = [
+    ('RF_d3_n50', RandomForestClassifier(n_estimators=50, max_depth=3, random_state=42)),
+    ('RF_d5_n100', RandomForestClassifier(n_estimators=100, max_depth=5, random_state=42)),
+    ('RF_d10_n100', RandomForestClassifier(n_estimators=100, max_depth=10, random_state=42)),
+    ('RF_dNone_n100', RandomForestClassifier(n_estimators=100, max_depth=None, random_state=42)),
+]
+
+# SVM: vary kernel and C parameter
+svm_learners = [
+    ('SVM_rbf_C1', SVC(kernel='rbf', C=1.0, probability=True, random_state=42)),
+    ('SVM_rbf_C10', SVC(kernel='rbf', C=10.0, probability=True, random_state=42)),
+    ('SVM_linear', SVC(kernel='linear', C=1.0, probability=True, random_state=42)),
+]
+
+# Combine all manual hyperparameter learners
+manual_learners = lr_learners + ridge_learners + rf_learners + svm_learners
+
+print(f"\nManual Hyperparameter Learners: {len(manual_learners)} total")
+for category, learners_list in [
+    ('Logistic Regression', lr_learners),
+    ('Ridge Classifier', ridge_learners),
+    ('Random Forest', rf_learners),
+    ('SVM', svm_learners)
+]:
+    print(f"  {category}: {len(learners_list)} variants")
+```
+
+```{python}
+#| label: eval-manual-hyperparameters
+
+sl_manual = SuperLearner(
+    learners=manual_learners,
+    method='nnloglik',
+    cv=5,
+    random_state=42,
+    verbose=False
+)
+
+sl_manual.fit(X_train, y_train)
+
+# Predictions
+y_pred_manual = sl_manual.predict_proba(X_test)[:, 1]
+auc_manual = roc_auc_score(y_test, y_pred_manual)
+
+print(f"\nManual Hyperparameters SuperLearner:")
+print(f"  Test AUC: {auc_manual:.4f}")
+
+# Show top weighted learners
+if sl_manual.meta_weights_ is not None:
+    weights_df = pd.DataFrame({
+        'Learner': [name for name, _ in manual_learners],
+        'Weight': sl_manual.meta_weights_
+    }).sort_values('Weight', ascending=False)
+
+    print(f"\nTop 5 Weighted Learners:")
+    print(weights_df.head().to_string(index=False))
+```
+
+# Learners with Inner Cross-Validation
+
+When you're uncertain about hyperparameters, use **inner CV** (GridSearchCV or RandomizedSearchCV) to automate selection. The SuperLearner treats these as single learners, but internally they perform hyperparameter tuning.
+
+**Key Advantage**: Reduces manual specification while exploring larger parameter spaces.
+
+**Trade-off**: Increased computational cost (inner CV multiplies training time).
+
+```{python}
+#| label: inner-cv-learners
+
+# GridSearchCV: Exhaustive search over parameter grid
+rf_grid = GridSearchCV(
+    RandomForestClassifier(random_state=42),
+    param_grid={
+        'n_estimators': [50, 100, 200],
+        'max_depth': [3, 5, 10, None],
+        'min_samples_split': [2, 5]
+    },
+    cv=3,
+    scoring='roc_auc',
+    n_jobs=-1
+)
+
+lr_grid = GridSearchCV(
+    LogisticRegression(solver='saga', max_iter=1000, random_state=42),
+    param_grid={
+        'C': [0.01, 0.1, 1.0, 10.0],
+        'penalty': ['l1', 'l2']
+    },
+    cv=3,
+    scoring='roc_auc',
+    n_jobs=-1
+)
+
+# RandomizedSearchCV: Random sampling from parameter distributions
+gbm_random = RandomizedSearchCV(
+    GradientBoostingClassifier(random_state=42),
+    param_distributions={
+        'n_estimators': [50, 100, 150, 200],
+        'max_depth': [2, 3, 4, 5],
+        'learning_rate': [0.01, 0.05, 0.1, 0.2],
+        'subsample': [0.6, 0.8, 1.0]
+    },
+    n_iter=20,  # Sample 20 random combinations
+    cv=3,
+    scoring='roc_auc',
+    random_state=42,
+    n_jobs=-1
+)
+
+svm_random = RandomizedSearchCV(
+    SVC(probability=True, random_state=42),
+    param_distributions={
+        'C': [0.1, 1.0, 10.0, 100.0],
+        'kernel': ['rbf', 'linear'],
+        'gamma': ['scale', 'auto', 0.001, 0.01, 0.1]
+    },
+    n_iter=15,
+    cv=3,
+    scoring='roc_auc',
+    random_state=42,
+    n_jobs=-1
+)
+
+inner_cv_learners = [
+    ('RF_GridCV', rf_grid),
+    ('LR_GridCV', lr_grid),
+    ('GBM_RandomCV', gbm_random),
+    ('SVM_RandomCV', svm_random)
+]
+
+print(f"\nInner CV Learners: {len(inner_cv_learners)} total")
+for name, learner in inner_cv_learners:
+    if isinstance(learner, GridSearchCV):
+        n_configs = np.prod([len(v) for v in learner.param_grid.values()])
+        print(f"  {name}: GridSearchCV ({n_configs} configurations)")
+    else:
+        print(f"  {name}: RandomizedSearchCV ({learner.n_iter} samples)")
+```
+
+```{python}
+#| label: eval-inner-cv
+
+sl_inner_cv = SuperLearner(
+    learners=inner_cv_learners,
+    method='nnloglik',
+    cv=5,
+    random_state=42,
+    verbose=False
+)
+
+sl_inner_cv.fit(X_train, y_train)
+
+y_pred_inner = sl_inner_cv.predict_proba(X_test)[:, 1]
+auc_inner = roc_auc_score(y_test, y_pred_inner)
+
+print(f"\nInner CV SuperLearner:")
+print(f"  Test AUC: {auc_inner:.4f}")
+
+# Show selected hyperparameters
+print(f"\nSelected Hyperparameters:")
+for name, learner_obj in sl_inner_cv.base_learners_full_:
+    if hasattr(learner_obj, 'best_params_'):
+        print(f"  {name}: {learner_obj.best_params_}")
+
+# Meta-weights
+if sl_inner_cv.meta_weights_ is not None:
+    weights_df = pd.DataFrame({
+        'Learner': [name for name, _ in inner_cv_learners],
+        'Weight': sl_inner_cv.meta_weights_
+    }).sort_values('Weight', ascending=False)
+    print(f"\nMeta-Learner Weights:")
+    print(weights_df.to_string(index=False))
+```
+
+# Manual Variable Sets
+
+When domain experts identify meaningful feature groups, use **VariableSet** to create learners operating on specific feature subsets.
+
+**Example Use Cases**:
+
+- Baseline demographics (age, sex, BMI) vs. biomarkers
+- Early features vs. late features (temporal data)
+- Cheap features vs. expensive features (cost-sensitive learning)
+
+We'll define feature groups and combine each with multiple learners.
+
+```{python}
+#| label: variable-sets
+
+# Define meaningful feature groups
+# Assume features 0-9 are "baseline", 10-19 are "biomarkers", 20-29 are "derived"
+var_set_baseline = VariableSet(
+    variables=['feature_00', 'feature_01', 'feature_02', 'feature_03', 'feature_04',
+               'feature_05', 'feature_06', 'feature_07', 'feature_08', 'feature_09'],
+    name='baseline'
+)
+
+var_set_biomarkers = VariableSet(
+    variables=['feature_10', 'feature_11', 'feature_12', 'feature_13', 'feature_14',
+               'feature_15', 'feature_16', 'feature_17', 'feature_18', 'feature_19'],
+    name='biomarkers'
+)
+
+var_set_derived = VariableSet(
+    variables=['feature_20', 'feature_21', 'feature_22', 'feature_23', 'feature_24',
+               'feature_25', 'feature_26', 'feature_27', 'feature_28', 'feature_29'],
+    name='derived'
+)
+
+var_set_first20 = VariableSet(
+    variables=feature_names[:20],
+    name='first_20'
+)
+
+print(f"\nVariable Sets Defined:")
+print(f"  baseline: features 0-9 (10 features)")
+print(f"  biomarkers: features 10-19 (10 features)")
+print(f"  derived: features 20-29 (10 features)")
+print(f"  first_20: features 0-19 (20 features)")
+```
+
+```{python}
+#| label: variable-set-learners
+
+# Combine variable sets with different learners
+variable_set_learners = []
+
+# Baseline features with different learners
+for var_set, vs_name in [
+    (var_set_baseline, 'baseline'),
+    (var_set_biomarkers, 'biomarkers'),
+    (var_set_derived, 'derived'),
+    (var_set_first20, 'first20')
+]:
+    # Logistic Regression
+    variable_set_learners.append((
+        f'LR_{vs_name}',
+        Pipeline([
+            ('varset', var_set),
+            ('lr', LogisticRegression(max_iter=1000, random_state=42))
+        ])
+    ))
+
+    # Random Forest
+    variable_set_learners.append((
+        f'RF_{vs_name}',
+        Pipeline([
+            ('varset', var_set),
+            ('rf', RandomForestClassifier(n_estimators=100, max_depth=5, random_state=42))
+        ])
+    ))
+
+print(f"\nVariable Set Learners: {len(variable_set_learners)} total")
+print(f"  4 variable sets × 2 learners = 8 learners")
+```
+
+```{python}
+#| label: eval-variable-sets
+
+sl_varsets = SuperLearner(
+    learners=variable_set_learners,
+    method='nnloglik',
+    cv=5,
+    random_state=42,
+    verbose=False
+)
+
+sl_varsets.fit(X_train, y_train)
+
+y_pred_varsets = sl_varsets.predict_proba(X_test)[:, 1]
+auc_varsets = roc_auc_score(y_test, y_pred_varsets)
+
+print(f"\nVariable Set SuperLearner:")
+print(f"  Test AUC: {auc_varsets:.4f}")
+
+# Meta-weights
+if sl_varsets.meta_weights_ is not None:
+    weights_df = pd.DataFrame({
+        'Learner': [name for name, _ in variable_set_learners],
+        'Weight': sl_varsets.meta_weights_
+    }).sort_values('Weight', ascending=False)
+    print(f"\nTop 5 Weighted Learners:")
+    print(weights_df.head().to_string(index=False))
+
+    # Analyze which feature sets were most useful
+    weights_by_set = {}
+    for learner, weight in zip(weights_df['Learner'], weights_df['Weight']):
+        if '_baseline' in learner:
+            weights_by_set['baseline'] = weights_by_set.get('baseline', 0) + weight
+        elif '_biomarkers' in learner:
+            weights_by_set['biomarkers'] = weights_by_set.get('biomarkers', 0) + weight
+        elif '_derived' in learner:
+            weights_by_set['derived'] = weights_by_set.get('derived', 0) + weight
+        elif '_first20' in learner:
+            weights_by_set['first20'] = weights_by_set.get('first20', 0) + weight
+
+    print(f"\nTotal Weight by Feature Set:")
+    for vs_name, total_weight in sorted(weights_by_set.items(), key=lambda x: x[1], reverse=True):
+        print(f"  {vs_name}: {total_weight:.4f}")
+```
+
+# Automated Screeners
+
+When you have high-dimensional data without clear domain knowledge, use **automated screeners**:
+
+1. **CorrelationScreener**: Select features correlated with outcome
+   - `threshold`: Keep features with |correlation| >= threshold
+   - `n_features`: Keep top N features by correlation
+
+2. **LassoScreener**: Select features with non-zero Lasso coefficients
+   - `alpha=None`: Automatic regularization strength via CV
+   - `alpha=float`: Fixed regularization strength
+
+We'll create multiple screener configurations and combine with different learners.
+
+```{python}
+#| label: screener-learners
+
+screened_learners = []
+
+# CorrelationScreener with different thresholds
+for threshold in [0.05, 0.10, 0.15]:
+    corr_screen = CorrelationScreener(threshold=threshold, name=f'corr{int(threshold*100):02d}')
+
+    # Combine with LogisticRegression
+    screened_learners.append((
+        f'LR_corr{int(threshold*100):02d}',
+        Pipeline([
+            ('screen', corr_screen),
+            ('lr', LogisticRegression(max_iter=1000, random_state=42))
+        ])
+    ))
+
+    # Combine with RandomForest
+    screened_learners.append((
+        f'RF_corr{int(threshold*100):02d}',
+        Pipeline([
+            ('screen', corr_screen),
+            ('rf', RandomForestClassifier(n_estimators=100, max_depth=5, random_state=42))
+        ])
+    ))
+
+    # Combine with SVM
+    screened_learners.append((
+        f'SVM_corr{int(threshold*100):02d}',
+        Pipeline([
+            ('screen', corr_screen),
+            ('svm', SVC(probability=True, random_state=42))
+        ])
+    ))
+
+# CorrelationScreener with top N selection
+for n_features in [10, 20]:
+    corr_screen = CorrelationScreener(n_features=n_features, name=f'top{n_features}')
+
+    screened_learners.append((
+        f'LR_top{n_features}',
+        Pipeline([
+            ('screen', corr_screen),
+            ('lr', LogisticRegression(max_iter=1000, random_state=42))
+        ])
+    ))
+
+    screened_learners.append((
+        f'RF_top{n_features}',
+        Pipeline([
+            ('screen', corr_screen),
+            ('rf', RandomForestClassifier(n_estimators=100, max_depth=5, random_state=42))
+        ])
+    ))
+
+# LassoScreener with automatic alpha
+lasso_auto = LassoScreener(classification=True, name='lasso_auto')
+screened_learners.extend([
+    ('LR_lasso_auto', Pipeline([('screen', lasso_auto), ('lr', LogisticRegression(max_iter=1000, random_state=42))])),
+    ('RF_lasso_auto', Pipeline([('screen', lasso_auto), ('rf', RandomForestClassifier(n_estimators=100, max_depth=5, random_state=42))])),
+    ('Ridge_lasso_auto', Pipeline([('screen', lasso_auto), ('ridge', RidgeClassifier(random_state=42))]))
+])
+
+# LassoScreener with fixed alpha values
+for alpha in [0.01, 0.1]:
+    lasso_fixed = LassoScreener(alpha=alpha, classification=True, name=f'lasso{int(alpha*100):02d}')
+
+    screened_learners.extend([
+        (f'LR_lasso{int(alpha*100):02d}', Pipeline([('screen', lasso_fixed), ('lr', LogisticRegression(max_iter=1000, random_state=42))])),
+        (f'RF_lasso{int(alpha*100):02d}', Pipeline([('screen', lasso_fixed), ('rf', RandomForestClassifier(n_estimators=100, max_depth=5, random_state=42))]))
+    ])
+
+print(f"\nScreened Learners: {len(screened_learners)} total")
+print(f"  CorrelationScreener (threshold): 3 thresholds × 3 learners = 9")
+print(f"  CorrelationScreener (top N): 2 values × 2 learners = 4")
+print(f"  LassoScreener (auto): 1 config × 3 learners = 3")
+print(f"  LassoScreener (fixed): 2 alphas × 2 learners = 4")
+print(f"  Total: {9+4+3+4} = 20 learners")
+```
+
+```{python}
+#| label: eval-screeners
+
+sl_screened = SuperLearner(
+    learners=screened_learners,
+    method='nnloglik',
+    cv=5,
+    random_state=42,
+    verbose=False
+)
+
+sl_screened.fit(X_train, y_train)
+
+y_pred_screened = sl_screened.predict_proba(X_test)[:, 1]
+auc_screened = roc_auc_score(y_test, y_pred_screened)
+
+print(f"\nScreened SuperLearner:")
+print(f"  Test AUC: {auc_screened:.4f}")
+
+# Meta-weights
+if sl_screened.meta_weights_ is not None:
+    weights_df = pd.DataFrame({
+        'Learner': [name for name, _ in screened_learners],
+        'Weight': sl_screened.meta_weights_
+    }).sort_values('Weight', ascending=False)
+    print(f"\nTop 10 Weighted Learners:")
+    print(weights_df.head(10).to_string(index=False))
+```
+
+```{python}
+#| label: screener-analysis
+
+# Analyze which screener types were most effective
+if sl_screened.meta_weights_ is not None:
+    weights_df = pd.DataFrame({
+        'Learner': [name for name, _ in screened_learners],
+        'Weight': sl_screened.meta_weights_
+    })
+
+    # Categorize by screener type
+    weights_df['ScreenerType'] = weights_df['Learner'].apply(lambda x:
+        'Correlation (threshold)' if 'corr' in x and 'top' not in x else
+        'Correlation (top N)' if 'top' in x else
+        'Lasso (auto)' if 'lasso_auto' in x else
+        'Lasso (fixed)'
+    )
+
+    screener_summary = weights_df.groupby('ScreenerType')['Weight'].agg(['sum', 'mean', 'count'])
+    screener_summary = screener_summary.sort_values('sum', ascending=False)
+
+    print(f"\nWeight Summary by Screener Type:")
+    print(screener_summary.round(4))
+```
+
+# Comprehensive SuperLearner: Combining All Approaches
+
+Now we combine ALL approaches into one large SuperLearner:
+
+- Manual hyperparameters (selected subset)
+- Inner CV learners
+- Variable set learners (top performers)
+- Screened learners (top performers)
+- Baseline (InterceptOnly)
+
+This creates a rich, diverse library spanning multiple approaches.
+
+```{python}
+#| label: comprehensive-library
+
+# Select top learners from each category based on previous weights
+comprehensive_learners = [
+    ('Intercept', InterceptOnlyEstimator()),  # Always include baseline
+]
+
+# Manual hyperparameters: Select top 5 by weight from sl_manual
+if sl_manual.meta_weights_ is not None:
+    manual_weights_df = pd.DataFrame({
+        'Learner': manual_learners,
+        'Weight': sl_manual.meta_weights_
+    }).sort_values('Weight', ascending=False)
+    top_manual = manual_weights_df.head(5)['Learner'].tolist()
+    comprehensive_learners.extend(top_manual)
+    print(f"Added {len(top_manual)} top manual hyperparameter learners")
+
+# Inner CV: Add all 4
+comprehensive_learners.extend(inner_cv_learners)
+print(f"Added {len(inner_cv_learners)} inner CV learners")
+
+# Variable sets: Select top 4 by weight
+if sl_varsets.meta_weights_ is not None:
+    varset_weights_df = pd.DataFrame({
+        'Learner': variable_set_learners,
+        'Weight': sl_varsets.meta_weights_
+    }).sort_values('Weight', ascending=False)
+    top_varsets = varset_weights_df.head(4)['Learner'].tolist()
+    comprehensive_learners.extend(top_varsets)
+    print(f"Added {len(top_varsets)} top variable set learners")
+
+# Screened: Select top 10 by weight
+if sl_screened.meta_weights_ is not None:
+    screened_weights_df = pd.DataFrame({
+        'Learner': screened_learners,
+        'Weight': sl_screened.meta_weights_
+    }).sort_values('Weight', ascending=False)
+    top_screened = screened_weights_df.head(10)['Learner'].tolist()
+    comprehensive_learners.extend(top_screened)
+    print(f"Added {len(top_screened)} top screened learners")
+
+# Add a few unscreened baselines for comparison
+comprehensive_learners.extend([
+    ('LR_baseline', LogisticRegression(max_iter=1000, random_state=42)),
+    ('RF_baseline', RandomForestClassifier(n_estimators=100, max_depth=5, random_state=42)),
+])
+print(f"Added 2 unscreened baseline learners")
+
+print(f"\nComprehensive Library: {len(comprehensive_learners)} learners total")
+```
+
+```{python}
+#| label: train-comprehensive
+
+sl_comprehensive = SuperLearner(
+    learners=comprehensive_learners,
+    method='nnloglik',
+    cv=5,
+    random_state=42,
+    verbose=False
+)
+
+sl_comprehensive.fit(X_train, y_train)
+
+y_pred_comprehensive = sl_comprehensive.predict_proba(X_test)[:, 1]
+auc_comprehensive = roc_auc_score(y_test, y_pred_comprehensive)
+acc_comprehensive = accuracy_score(y_test, (y_pred_comprehensive >= 0.5).astype(int))
+
+print(f"\nComprehensive SuperLearner:")
+print(f"  Test AUC: {auc_comprehensive:.4f}")
+print(f"  Test Accuracy: {acc_comprehensive:.4f}")
+
+# CV risks
+if hasattr(sl_comprehensive, 'cv_risks_') and sl_comprehensive.cv_risks_ is not None:
+    cv_risks_df = pd.DataFrame({
+        'Learner': [name for name, _ in comprehensive_learners],
+        'CV_Risk': sl_comprehensive.cv_risks_
+    }).sort_values('CV_Risk')
+
+    print(f"\nTop 10 Learners by CV Risk:")
+    print(cv_risks_df.head(10).to_string(index=False))
+```
+
+```{python}
+#| label: comprehensive-weights
+
+if sl_comprehensive.meta_weights_ is not None:
+    weights_df = pd.DataFrame({
+        'Learner': [name for name, _ in comprehensive_learners],
+        'Weight': sl_comprehensive.meta_weights_
+    }).sort_values('Weight', ascending=False)
+
+    print(f"\nTop 15 Meta-Learner Weights:")
+    print(weights_df.head(15).to_string(index=False))
+
+    # Visualize weights
+    fig, ax = plt.subplots(figsize=(10, 8))
+    top_weights = weights_df.head(20)
+    bars = ax.barh(top_weights['Learner'], top_weights['Weight'], color='steelblue')
+    ax.set_xlabel('Meta-Learner Weight', fontsize=12)
+    ax.set_ylabel('Learner', fontsize=12)
+    ax.set_title('Top 20 Meta-Learner Weights (Comprehensive Library)',
+                 fontsize=14, fontweight='bold')
+    ax.invert_yaxis()
+
+    # Add value labels
+    for i, (learner, weight) in enumerate(zip(top_weights['Learner'], top_weights['Weight'])):
+        ax.text(weight, i, f'{weight:.3f}', ha='left', va='center', fontsize=9,
+                bbox=dict(boxstyle='round,pad=0.3', facecolor='white', alpha=0.7))
+
+    plt.tight_layout()
+    plt.show()
+```
+
+# Performance Comparison Across Approaches
+
+Let's compare the test set performance of each approach:
+
+1. Manual Hyperparameters
+2. Inner CV
+3. Variable Sets
+4. Screened Learners
+5. Comprehensive (combined)
+6. Baseline Unscreened Learners
+
+```{python}
+#| label: performance-comparison
+
+# Evaluate baseline learners
+baseline_learners_eval = [
+    ('LR_full', LogisticRegression(max_iter=1000, random_state=42)),
+    ('RF_full', RandomForestClassifier(n_estimators=100, max_depth=5, random_state=42)),
+    ('SVM_full', SVC(probability=True, random_state=42))
+]
+
+baseline_results = []
+for name, learner in baseline_learners_eval:
+    learner.fit(X_train, y_train)
+    y_pred = learner.predict_proba(X_test)[:, 1] if hasattr(learner, 'predict_proba') else learner.decision_function(X_test)
+    auc = roc_auc_score(y_test, y_pred)
+    baseline_results.append({'Learner': name, 'AUC': auc})
+
+# Compile all results
+results_summary = []
+results_summary.append({'Approach': 'Manual Hyperparameters', 'AUC': auc_manual, 'N_Learners': len(manual_learners)})
+results_summary.append({'Approach': 'Inner CV', 'AUC': auc_inner, 'N_Learners': len(inner_cv_learners)})
+results_summary.append({'Approach': 'Variable Sets', 'AUC': auc_varsets, 'N_Learners': len(variable_set_learners)})
+results_summary.append({'Approach': 'Screened Learners', 'AUC': auc_screened, 'N_Learners': len(screened_learners)})
+results_summary.append({'Approach': 'Comprehensive', 'AUC': auc_comprehensive, 'N_Learners': len(comprehensive_learners)})
+
+# Add baseline individual learners
+for res in baseline_results:
+    results_summary.append({'Approach': f"Baseline: {res['Learner']}", 'AUC': res['AUC'], 'N_Learners': 1})
+
+results_df = pd.DataFrame(results_summary).sort_values('AUC', ascending=False)
+
+print(f"\nPerformance Summary:")
+print("=" * 70)
+print(results_df.to_string(index=False))
+```
+
+```{python}
+#| label: fig-performance-comparison
+#| fig-cap: "Test set AUC comparison across approaches"
+
+fig, ax = plt.subplots(figsize=(10, 6))
+
+# Color-code by approach type
+colors = []
+for approach in results_df['Approach']:
+    if 'Baseline' in approach:
+        colors.append('lightcoral')
+    elif 'Comprehensive' in approach:
+        colors.append('darkgreen')
+    else:
+        colors.append('steelblue')
+
+bars = ax.barh(results_df['Approach'], results_df['AUC'], color=colors)
+ax.set_xlabel('Test AUC', fontsize=12)
+ax.set_ylabel('Approach', fontsize=12)
+ax.set_title('SuperLearner Performance by Approach', fontsize=14, fontweight='bold')
+ax.set_xlim([results_df['AUC'].min() - 0.02, 1.0])
+ax.invert_yaxis()
+
+# Add value labels
+for i, (approach, auc) in enumerate(zip(results_df['Approach'], results_df['AUC'])):
+    ax.text(auc, i, f'{auc:.4f}', ha='left', va='center', fontsize=9,
+            bbox=dict(boxstyle='round,pad=0.3', facecolor='white', alpha=0.8))
+
+# Add legend
+from matplotlib.patches import Patch
+legend_elements = [
+    Patch(facecolor='darkgreen', label='Comprehensive'),
+    Patch(facecolor='steelblue', label='SuperLearner Approaches'),
+    Patch(facecolor='lightcoral', label='Individual Baselines')
+]
+ax.legend(handles=legend_elements, loc='lower right')
+
+plt.tight_layout()
+plt.show()
+```
+
+# Screened vs. Unscreened: Head-to-Head Comparison
+
+To isolate the effect of screening, we compare matched pairs:
+
+- Logistic Regression: screened vs. unscreened
+- Random Forest: screened vs. unscreened
+- SVM: screened vs. unscreened
+
+We use correlation screening with threshold=0.15 (a common choice).
+
+```{python}
+#| label: screened-vs-unscreened
+
+# Create matched pairs
+matched_learners = [
+    # Unscreened
+    ('LR_unscreened', LogisticRegression(max_iter=1000, random_state=42)),
+    ('RF_unscreened', RandomForestClassifier(n_estimators=100, max_depth=5, random_state=42)),
+    ('SVM_unscreened', SVC(probability=True, random_state=42)),
+
+    # Screened
+    ('LR_screened', Pipeline([('screen', CorrelationScreener(threshold=0.15, name='corr15')),
+                               ('lr', LogisticRegression(max_iter=1000, random_state=42))])),
+    ('RF_screened', Pipeline([('screen', CorrelationScreener(threshold=0.15, name='corr15')),
+                               ('rf', RandomForestClassifier(n_estimators=100, max_depth=5, random_state=42))])),
+    ('SVM_screened', Pipeline([('screen', CorrelationScreener(threshold=0.15, name='corr15')),
+                                ('svm', SVC(probability=True, random_state=42))]))
+]
+
+# Evaluate each learner individually
+comparison_results = []
+for name, learner in matched_learners:
+    learner.fit(X_train, y_train)
+    y_pred = learner.predict_proba(X_test)[:, 1]
+    auc = roc_auc_score(y_test, y_pred)
+
+    learner_type = name.split('_')[0]
+    screening_status = 'Screened' if 'screened' in name else 'Unscreened'
+
+    comparison_results.append({
+        'Learner': learner_type,
+        'Screening': screening_status,
+        'AUC': auc
+    })
+
+comparison_df = pd.DataFrame(comparison_results)
+comparison_pivot = comparison_df.pivot(index='Learner', columns='Screening', values='AUC')
+comparison_pivot['Improvement'] = comparison_pivot['Screened'] - comparison_pivot['Unscreened']
+comparison_pivot = comparison_pivot.sort_values('Improvement', ascending=False)
+
+print(f"\nScreened vs. Unscreened Comparison:")
+print(comparison_pivot.round(4))
+```
+
+```{python}
+#| label: fig-screened-comparison
+#| fig-cap: "AUC comparison: screened vs. unscreened learners"
+
+fig, ax = plt.subplots(figsize=(10, 6))
+
+x = np.arange(len(comparison_pivot))
+width = 0.35
+
+bars1 = ax.bar(x - width/2, comparison_pivot['Unscreened'], width,
+               label='Unscreened', color='lightcoral')
+bars2 = ax.bar(x + width/2, comparison_pivot['Screened'], width,
+               label='Screened', color='seagreen')
+
+ax.set_xlabel('Learner Type', fontsize=12)
+ax.set_ylabel('Test AUC', fontsize=12)
+ax.set_title('Screening Impact on Individual Learners', fontsize=14, fontweight='bold')
+ax.set_xticks(x)
+ax.set_xticklabels(comparison_pivot.index)
+ax.legend()
+
+# Add value labels
+for bars in [bars1, bars2]:
+    for bar in bars:
+        height = bar.get_height()
+        ax.text(bar.get_x() + bar.get_width()/2, height,
+                f'{height:.3f}', ha='center', va='bottom', fontsize=9)
+
+plt.tight_layout()
+plt.show()
+```
+
+# Key Insights and Recommendations
+
+## Summary of Findings
+
+From our comprehensive analysis:
+
+```{python}
+#| label: insights
+
+print("=" * 70)
+print("KEY INSIGHTS")
+print("=" * 70)
+
+# 1. Best overall approach
+best_approach = results_df.iloc[0]
+print(f"\n1. BEST OVERALL APPROACH")
+print(f"   {best_approach['Approach']}: AUC = {best_approach['AUC']:.4f}")
+print(f"   ({best_approach['N_Learners']} learners in library)")
+
+# 2. Screening impact
+avg_improvement = comparison_pivot['Improvement'].mean()
+print(f"\n2. SCREENING IMPACT")
+print(f"   Average AUC improvement: {avg_improvement:+.4f}")
+if avg_improvement > 0:
+    print(f"   → Screening HELPED on average")
+else:
+    print(f"   → Screening did not help on this dataset")
+
+# 3. Most weighted learner types
+if sl_comprehensive.meta_weights_ is not None:
+    top_3_learners = weights_df.head(3)
+    print(f"\n3. TOP 3 WEIGHTED LEARNERS (Comprehensive)")
+    for idx, row in top_3_learners.iterrows():
+        print(f"   {row['Learner']}: weight = {row['Weight']:.4f}")
+
+# 4. Inner CV effectiveness
+print(f"\n4. INNER CV EFFECTIVENESS")
+print(f"   Inner CV AUC: {auc_inner:.4f}")
+print(f"   Manual Hyperparameters AUC: {auc_manual:.4f}")
+diff = auc_inner - auc_manual
+print(f"   Difference: {diff:+.4f}")
+if diff > 0.01:
+    print(f"   → Inner CV significantly better")
+elif diff < -0.01:
+    print(f"   → Manual hyperparameters better (domain knowledge wins)")
+else:
+    print(f"   → Comparable performance")
+
+print("\n" + "=" * 70)
+```
+
+## Recommendations
+
+### When to Use Manual Hyperparameters
+
+- You have prior knowledge about good parameter ranges
+- Computational budget is limited
+- You're working with well-understood algorithms
+
+### When to Use Inner CV
+
+- You're uncertain about hyperparameters
+- You have sufficient computational resources
+- You want fully automated tuning
+
+### When to Use Variable Sets
+
+- Domain experts can identify meaningful feature groups
+- Features have natural groupings (temporal, biological, etc.)
+- You want interpretable feature selection
+
+### When to Use Screeners
+
+- High-dimensional data (many features, few samples)
+- Many noisy or irrelevant features
+- You need automated, data-driven selection
+- **Correlation screening**: Fast, interpretable, works with all learners
+- **Lasso screening**: More sophisticated, handles collinearity
+
+### When to Build Comprehensive Libraries
+
+- You have adequate computational resources
+- Performance is critical
+- You want the SuperLearner to select the best approach
+- You're comparing multiple strategies empirically
+
+# Summary
+
+```{python}
+#| label: summary
+
+print("\n" + "=" * 70)
+print("SUMMARY")
+print("=" * 70)
+
+summary_data = {
+    'Category': [
+        'Manual Hyperparameters',
+        'Inner CV',
+        'Variable Sets',
+        'Screened Learners',
+        'Comprehensive',
+    ],
+    'N_Learners': [
+        len(manual_learners),
+        len(inner_cv_learners),
+        len(variable_set_learners),
+        len(screened_learners),
+        len(comprehensive_learners),
+    ],
+    'Test_AUC': [
+        auc_manual,
+        auc_inner,
+        auc_varsets,
+        auc_screened,
+        auc_comprehensive,
+    ]
+}
+
+summary_df = pd.DataFrame(summary_data).sort_values('Test_AUC', ascending=False)
+print(summary_df.to_string(index=False))
+
+print("\n" + "=" * 70)
+print("This analysis demonstrated:")
+print("  ✓ Manual hyperparameter specification")
+print("  ✓ Inner cross-validation for automated tuning")
+print("  ✓ Manual variable sets for domain knowledge")
+print("  ✓ Automated screeners for high-dimensional data")
+print("  ✓ Comprehensive libraries combining all approaches")
+print("=" * 70)
+```
+
+## Session Information
+
+```{python}
+#| label: session-info
+
+import sys
+import sklearn
+
+print("\nSession Information:")
+print(f"Python version: {sys.version}")
+print(f"NumPy version: {np.__version__}")
+print(f"Pandas version: {pd.__version__}")
+print(f"Scikit-learn version: {sklearn.__version__}")
+print(f"Matplotlib version: {plt.matplotlib.__version__}")
+print(f"Seaborn version: {sns.__version__}")
+```
