@@ -12,6 +12,7 @@ from sklearn.base import clone
 from sklearn.utils.validation import check_X_y, check_array
 from scipy.optimize import nnls
 from scipy.special import expit
+from joblib import Parallel, delayed
 
 from sklearn.base import BaseEstimator, ClassifierMixin, RegressorMixin
 from sklearn.model_selection import StratifiedKFold, KFold
@@ -101,7 +102,7 @@ class SuperLearner(BaseEstimator, ClassifierMixin):
 
     def __init__(self, learners=None, method='nnloglik', cv=5, random_state=None,
                  verbose=False, track_errors=True, trim=0.001,
-                 normalize_weights=True, n_jobs=1, min_viable_learners=1):
+                 normalize_weights=True, n_jobs=1, n_jobs_learners=1, min_viable_learners=1):
         self.learners = learners
         self.method = method
         self.cv = cv
@@ -111,6 +112,7 @@ class SuperLearner(BaseEstimator, ClassifierMixin):
         self.trim = trim
         self.normalize_weights = normalize_weights
         self.n_jobs = n_jobs
+        self.n_jobs_learners = n_jobs_learners
         self.min_viable_learners = min_viable_learners
 
         # Initialize error tracking
@@ -130,6 +132,114 @@ class SuperLearner(BaseEstimator, ClassifierMixin):
             return expit(model.decision_function(X))
         # fallback to predict (0/1)
         return np.asarray(model.predict(X), dtype=float)
+
+    def _fit_single_learner_cv(self, learner_idx, name, estimator, X_tr, y_tr,
+                               sw_tr, X_te, inner_fold_idx):
+        """Fit a single learner on one CV fold.
+
+        Parameters
+        ----------
+        learner_idx : int
+            Index of the learner in the list
+        name : str
+            Name of the learner
+        estimator : estimator object
+            The base learner to fit
+        X_tr : array-like
+            Training features for this fold
+        y_tr : array-like
+            Training targets for this fold
+        sw_tr : array-like or None
+            Sample weights for training (if supported)
+        X_te : array-like
+            Test features for this fold
+        inner_fold_idx : int
+            Index of the inner CV fold
+
+        Returns
+        -------
+        tuple : (learner_idx, name, predictions, fit_time, error_dict)
+            Results from fitting this learner on this fold
+        """
+        import time
+        start_time = time.time()
+
+        try:
+            mdl = clone(estimator)
+            # Fit with sample_weight when supported
+            if sw_tr is not None:
+                try:
+                    mdl.fit(X_tr, y_tr, sample_weight=sw_tr)
+                except TypeError:
+                    mdl.fit(X_tr, y_tr)
+            else:
+                mdl.fit(X_tr, y_tr)
+
+            preds = self._get_proba(mdl, X_te)
+            fit_time = time.time() - start_time
+
+            return (learner_idx, name, preds, fit_time, None)
+
+        except Exception as e:
+            fit_time = time.time() - start_time
+            error_dict = {
+                'learner_name': name,
+                'error_type': ErrorType.FITTING,
+                'message': str(e),
+                'fold': inner_fold_idx,
+                'phase': 'cv'
+            }
+            return (learner_idx, name, None, fit_time, error_dict)
+
+    def _fit_single_learner_final(self, learner_idx, name, estimator, X_arr, y_arr,
+                                   sample_weight):
+        """Fit a single learner on full training data.
+
+        Parameters
+        ----------
+        learner_idx : int
+            Index of the learner in the list
+        name : str
+            Name of the learner
+        estimator : estimator object
+            The base learner to fit
+        X_arr : array-like
+            Full training features
+        y_arr : array-like
+            Full training targets
+        sample_weight : array-like or None
+            Sample weights (if supported)
+
+        Returns
+        -------
+        tuple : (learner_idx, name, fitted_model, error_dict)
+            Results from fitting this learner
+        """
+        try:
+            mdl = clone(estimator)
+            # Fit with sample_weight when supported
+            if sample_weight is not None:
+                try:
+                    mdl.fit(X_arr, y_arr, sample_weight=sample_weight)
+                except TypeError:
+                    mdl.fit(X_arr, y_arr)
+            else:
+                mdl.fit(X_arr, y_arr)
+
+            return (learner_idx, name, mdl, None)
+
+        except Exception as e:
+            import traceback
+            error_dict = {
+                'learner_name': name,
+                'error_type': ErrorType.FITTING,
+                'message': f"Final refit failed: {str(e)}",
+                'fold': None,
+                'phase': 'final_refit',
+                'severity': 'error',
+                'traceback': traceback.format_exc() if self.verbose else None
+            }
+            return (learner_idx, name, None, error_dict)
 
     def _build_level1(self, X, y, learners: List[tuple], cv=None,
                       random_state: Optional[int] = None, sample_weight=None, groups=None):
@@ -168,49 +278,93 @@ class SuperLearner(BaseEstimator, ClassifierMixin):
             if sample_weight is not None:
                 sw_tr = np.asarray(sample_weight)[train_idx]
 
-            for j, (name, estimator) in enumerate(learners):
-                start_time = time.time()  # New: start timing
-                try:
-                    mdl = clone(estimator)
-                    # fit with sample_weight when supported
+            # Determine whether to parallelize learners
+            if self.n_jobs_learners == 1:
+                # Sequential mode (existing behavior)
+                for j, (name, estimator) in enumerate(learners):
+                    start_time = time.time()  # New: start timing
                     try:
-                        if sw_tr is not None:
-                            mdl.fit(X_tr, y_tr, sample_weight=sw_tr)
-                        else:
+                        mdl = clone(estimator)
+                        # fit with sample_weight when supported
+                        try:
+                            if sw_tr is not None:
+                                mdl.fit(X_tr, y_tr, sample_weight=sw_tr)
+                            else:
+                                mdl.fit(X_tr, y_tr)
+                        except TypeError:
                             mdl.fit(X_tr, y_tr)
-                    except TypeError:
-                        mdl.fit(X_tr, y_tr)
-                    preds = self._get_proba(mdl, X_te)
-                    fit_time = time.time() - start_time  # New: capture time
+                        preds = self._get_proba(mdl, X_te)
+                        fit_time = time.time() - start_time  # New: capture time
 
-                    # New: record timing
-                    learner_timings.append({
+                        # New: record timing
+                        learner_timings.append({
+                            'learner_name': name,
+                            'inner_fold_idx': inner_fold_idx,
+                            'fit_time': fit_time,
+                            'timestamp': time.time()
+                        })
+
+                        # New: display per-learner update if verbose
+                        if self.verbose:
+                            print(f"  [{name}] completed inner fold {inner_fold_idx + 1} in {fit_time:.2f}s")
+
+                    except Exception as e:
+                        fit_time = time.time() - start_time  # New: capture time even on error
+                        # New: record timing with error flag
+                        learner_timings.append({
+                            'learner_name': name,
+                            'inner_fold_idx': inner_fold_idx,
+                            'fit_time': fit_time,
+                            'timestamp': time.time(),
+                            'error': str(e)
+                        })
+                        # register error and fill with nan
+                        if self.error_tracker is not None:
+                            self.error_tracker.add_error(name, ErrorType.FITTING, str(e), fold=None, phase='cv')
+                        preds = np.full(len(test_idx), np.nan)
+                    Z[test_idx, j] = preds
+                    cv_preds[j][test_idx] = preds
+            else:
+                # Parallel mode
+                results = Parallel(n_jobs=self.n_jobs_learners, verbose=0)(
+                    delayed(self._fit_single_learner_cv)(
+                        j, name, estimator, X_tr, y_tr, sw_tr, X_te, inner_fold_idx
+                    )
+                    for j, (name, estimator) in enumerate(learners)
+                )
+
+                # Process results
+                for learner_idx, name, preds, fit_time, error_dict in results:
+                    # Record timing
+                    timing_entry = {
                         'learner_name': name,
                         'inner_fold_idx': inner_fold_idx,
                         'fit_time': fit_time,
                         'timestamp': time.time()
-                    })
+                    }
+                    if error_dict is not None:
+                        timing_entry['error'] = error_dict['message']
+                    learner_timings.append(timing_entry)
 
-                    # New: display per-learner update if verbose
-                    if self.verbose:
+                    # Handle errors
+                    if error_dict is not None:
+                        if self.error_tracker is not None:
+                            self.error_tracker.add_error(
+                                error_dict['learner_name'],
+                                error_dict['error_type'],
+                                error_dict['message'],
+                                fold=error_dict['fold'],
+                                phase=error_dict['phase']
+                            )
+                        preds = np.full(len(test_idx), np.nan)
+
+                    # Assign predictions to Z matrix
+                    Z[test_idx, learner_idx] = preds
+                    cv_preds[learner_idx][test_idx] = preds
+
+                    # Display progress if verbose
+                    if self.verbose and error_dict is None:
                         print(f"  [{name}] completed inner fold {inner_fold_idx + 1} in {fit_time:.2f}s")
-
-                except Exception as e:
-                    fit_time = time.time() - start_time  # New: capture time even on error
-                    # New: record timing with error flag
-                    learner_timings.append({
-                        'learner_name': name,
-                        'inner_fold_idx': inner_fold_idx,
-                        'fit_time': fit_time,
-                        'timestamp': time.time(),
-                        'error': str(e)
-                    })
-                    # register error and fill with nan
-                    if self.error_tracker is not None:
-                        self.error_tracker.add_error(name, ErrorType.FITTING, str(e), fold=None, phase='cv')
-                    preds = np.full(len(test_idx), np.nan)
-                Z[test_idx, j] = preds
-                cv_preds[j][test_idx] = preds
 
         # Clip/trimming
         Z = np.clip(Z, self.trim, 1.0 - self.trim)
@@ -338,51 +492,97 @@ class SuperLearner(BaseEstimator, ClassifierMixin):
         self.base_learners_full_ = []
         self.failed_learners_ = set()
 
-        for name, estimator in base_learners:
-            mdl = clone(estimator)
-            try:
-                # Try to fit with sample_weight
-                if sample_weight is not None:
-                    try:
-                        mdl.fit(X_arr, y_arr, sample_weight=sample_weight)
-                    except TypeError:
-                        # Estimator doesn't support sample_weight
+        if self.n_jobs_learners == 1:
+            # Sequential mode (existing behavior)
+            for name, estimator in base_learners:
+                mdl = clone(estimator)
+                try:
+                    # Try to fit with sample_weight
+                    if sample_weight is not None:
+                        try:
+                            mdl.fit(X_arr, y_arr, sample_weight=sample_weight)
+                        except TypeError:
+                            # Estimator doesn't support sample_weight
+                            mdl.fit(X_arr, y_arr)
+                    else:
                         mdl.fit(X_arr, y_arr)
+                    self.base_learners_full_.append((name, mdl))
+
+                except Exception as e:
+                    # Track error during final refit
+                    if self.error_tracker is not None:
+                        import traceback
+                        self.error_tracker.add_error(
+                            learner_name=name,
+                            error_type=ErrorType.FITTING,
+                            message=f"Final refit failed: {str(e)}",
+                            fold=None,
+                            phase='final_refit',
+                            severity='error',
+                            traceback=traceback.format_exc() if self.verbose else None
+                        )
+                    self.failed_learners_.add(name)
+
+                    # Add dummy learner that returns neutral predictions
+                    from sklearn.base import ClassifierMixin
+                    class _DummyFailedLearner(BaseEstimator, ClassifierMixin):
+                        def __init__(self, name):
+                            self.name = name
+                        def fit(self, X, y, sample_weight=None):
+                            return self
+                        def predict_proba(self, X):
+                            n = X.shape[0] if hasattr(X, 'shape') else len(X)
+                            return np.column_stack([np.full(n, 0.5), np.full(n, 0.5)])
+                        def predict(self, X):
+                            n = X.shape[0] if hasattr(X, 'shape') else len(X)
+                            return np.zeros(n, dtype=int)
+
+                    dummy = _DummyFailedLearner(name=name)
+                    self.base_learners_full_.append((name, dummy))
+        else:
+            # Parallel mode
+            results = Parallel(n_jobs=self.n_jobs_learners, verbose=0)(
+                delayed(self._fit_single_learner_final)(
+                    idx, name, estimator, X_arr, y_arr, sample_weight
+                )
+                for idx, (name, estimator) in enumerate(base_learners)
+            )
+
+            # Process results in order to maintain learner ordering
+            for learner_idx, name, mdl, error_dict in results:
+                if error_dict is None:
+                    # Successful fit
+                    self.base_learners_full_.append((name, mdl))
                 else:
-                    mdl.fit(X_arr, y_arr)
-                self.base_learners_full_.append((name, mdl))
+                    # Failed fit - track error
+                    if self.error_tracker is not None:
+                        self.error_tracker.add_error(
+                            learner_name=error_dict['learner_name'],
+                            error_type=error_dict['error_type'],
+                            message=error_dict['message'],
+                            fold=error_dict['fold'],
+                            phase=error_dict['phase'],
+                            severity=error_dict.get('severity', 'error'),
+                            traceback=error_dict.get('traceback')
+                        )
+                    self.failed_learners_.add(name)
 
-            except Exception as e:
-                # Track error during final refit
-                if self.error_tracker is not None:
-                    import traceback
-                    self.error_tracker.add_error(
-                        learner_name=name,
-                        error_type=ErrorType.FITTING,
-                        message=f"Final refit failed: {str(e)}",
-                        fold=None,
-                        phase='final_refit',
-                        severity='error',
-                        traceback=traceback.format_exc() if self.verbose else None
-                    )
-                self.failed_learners_.add(name)
+                    # Add dummy learner that returns neutral predictions
+                    from sklearn.base import ClassifierMixin
+                    class _DummyFailedLearner(BaseEstimator, ClassifierMixin):
+                        def __init__(self, name):
+                            self.name = name
+                        def fit(self, X, y, sample_weight=None):
+                            return self
+                        def predict_proba(self, X):
+                            n = X.shape[0] if hasattr(X, 'shape') else len(X)
+                            return np.column_stack([np.full(n, 0.5), np.full(n, 0.5)])
+                        def predict(self, X):
+                            n = X.shape[0] if hasattr(X, 'shape') else len(X)
+                            return np.zeros(n, dtype=int)
 
-                # Add dummy learner that returns neutral predictions
-                from sklearn.base import ClassifierMixin
-                class _DummyFailedLearner(BaseEstimator, ClassifierMixin):
-                    def __init__(self, name):
-                        self.name = name
-                    def fit(self, X, y, sample_weight=None):
-                        return self
-                    def predict_proba(self, X):
-                        n = X.shape[0] if hasattr(X, 'shape') else len(X)
-                        return np.column_stack([np.full(n, 0.5), np.full(n, 0.5)])
-                    def predict(self, X):
-                        n = X.shape[0] if hasattr(X, 'shape') else len(X)
-                        return np.zeros(n, dtype=int)
-
-                dummy = _DummyFailedLearner(name=name)
-                self.base_learners_full_.append((name, dummy))
+                    dummy = _DummyFailedLearner(name=name)
+                    self.base_learners_full_.append((name, dummy))
 
         # Check if we have enough working learners
         working_learners = len(self.base_learners_full_) - len(self.failed_learners_)

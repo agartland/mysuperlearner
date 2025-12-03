@@ -38,6 +38,7 @@ def evaluate_super_learner_cv(
     sample_weight: Optional[Any] = None,
     metrics: Optional[Dict[str, Callable]] = None,
     n_jobs: Optional[int] = 1,
+    n_jobs_learners: Optional[int] = 1,
     return_predictions: bool = False,
     return_object: bool = False,
 ):
@@ -115,6 +116,7 @@ def evaluate_super_learner_cv(
         sl = clone(super_learner)
         # Set learners for this fold and fit
         sl.learners = base_learners
+        sl.n_jobs_learners = n_jobs_learners  # Pass through learner parallelization setting
         sl.fit(X_tr, y_tr, sample_weight=sw_tr)
 
         try:
@@ -431,13 +433,14 @@ class CVSuperLearner(BaseEstimator, ClassifierMixin):
     """
 
     def __init__(self, learners, method='nnloglik', cv=5, inner_cv=5,
-                 random_state=None, n_jobs=1, verbose=False, **kwargs):
+                 random_state=None, n_jobs=1, n_jobs_learners=1, verbose=False, **kwargs):
         self.learners = learners
         self.method = method
         self.cv = cv
         self.inner_cv = inner_cv
         self.random_state = random_state
         self.n_jobs = n_jobs
+        self.n_jobs_learners = n_jobs_learners
         self.verbose = verbose
         self.kwargs = kwargs
         self.results_ = None
@@ -468,6 +471,19 @@ class CVSuperLearner(BaseEstimator, ClassifierMixin):
                           random_state=self.random_state,
                           verbose=self.verbose, **self.kwargs)
 
+        # Handle nested parallelism - warn and adjust if both are set
+        effective_n_jobs_learners = self.n_jobs_learners
+        if self.n_jobs > 1 and self.n_jobs_learners > 1:
+            import warnings
+            warnings.warn(
+                f"Both n_jobs={self.n_jobs} and n_jobs_learners={self.n_jobs_learners} are > 1. "
+                "Using n_jobs for fold parallelization and forcing n_jobs_learners=1 within "
+                "each fold to avoid nested parallelism overhead. For best performance, use "
+                "either n_jobs OR n_jobs_learners, not both.",
+                UserWarning
+            )
+            effective_n_jobs_learners = 1
+
         # Run CV evaluation using existing function
         self.results_ = evaluate_super_learner_cv(
             X=X,
@@ -478,6 +494,7 @@ class CVSuperLearner(BaseEstimator, ClassifierMixin):
             random_state=self.random_state,
             sample_weight=sample_weight,
             n_jobs=self.n_jobs,
+            n_jobs_learners=effective_n_jobs_learners,
             return_predictions=True,
             return_object=True
         )
